@@ -1,0 +1,11 @@
+name: imager
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - numpy
+  - pillow
+  - pip
+  - pip:
+      - harvesters
+
