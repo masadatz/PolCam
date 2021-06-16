@@ -4,13 +4,13 @@ from PIL import Image
 
 # Based on - https://github.com/genicam/harvesters
 from harvesters.core import Harvester
-
+from params import GIGE_CTI, USB3_CTI
 
 class Imager:
     def __init__(self):
         self.h = Harvester()
-        self.h.add_file(r'C:\\Program Files\\SVS-VISTEK GmbH\\SVCam Kit\\TLUsb\\bin\\sv_u3v_tl_x64.cti')
-        self.h.add_file(r'C:\Program Files\SVS-VISTEK GmbH\SVCam Kit\TLGigE\bin\\sv_gev_tl_x64.cti')
+        self.h.add_file(USB3_CTI)
+        self.h.add_file(GIGE_CTI)
         self.h.update()
         num_devices = len(self.h.device_info_list)
         print(f"Found {num_devices} devices")  # see all cameras
@@ -37,23 +37,27 @@ class Imager:
 
     def _start_acquisitions(self):
         for ia in self.cams:
-            ia.start_acquisition(run_in_background=True)  # Start capturing images
+            ia.start_acquisition(run_in_background=True)  # Start capturing images # TODO is this flag necessary?
 
     def _stop_acquisitions(self):
         for ia in self.cams:
             ia.stop_acquisition()  # stop capturing images
 
     def show_images(self):
-        for img, img_time, cam_id in self.images:
+        for img, _, _ in self.images:
             img.show()
-            img.save(f'{cam_id}_{img_time.strftime("%Y_%m_%d_%H%M%S")}.jpeg')
 
-    def get_images(self, show_images):
+    def save_images(self):
+        for img, img_time, cam_id in self.images:
+            img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.jpeg')
+
+    def get_images(self, show_images, save_images):
         images_with_times = []
+        raw_images = []
         for cam_id, ia in zip(self.serial_ids, self.cams):
-            # acquire and save an image
             cur_time = datetime.now()
 
+            # acquire an image
             with ia.fetch_buffer() as buffer:
                 component = buffer.payload.components[0]
                 print(f"cam {cam_id} captured image of format {component.data_format} at {cur_time}")
@@ -61,14 +65,17 @@ class Imager:
                     data = component.data >> 4
                 else:
                     data = component.data
-                _2d = component.data.reshape(component.height, component.width)
-
-                img = Image.fromarray(copy.deepcopy(_2d))
+                _2d = data.reshape(component.height, component.width)
+                raw_image = copy.deepcopy(_2d)
+                img = Image.fromarray(raw_image)
                 images_with_times.append((img, cur_time, cam_id))
-
+                raw_images.append(raw_image)
         self.images = images_with_times
+        self.raw_images = raw_images
         if show_images:
             self.show_images()
+        if save_images:
+            self.save_images()
 
     def clear_all(self):
         for ia in self.cams:

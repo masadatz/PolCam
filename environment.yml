@@ -4,8 +4,11 @@ channels:
   - conda-forge
 dependencies:
   - numpy
+  - python=3.8
   - pillow
   - pip
+  - jupyter
+  - nb_conda
   - pip:
       - harvesters
 
