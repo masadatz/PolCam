@@ -1,7 +1,8 @@
 import copy
 from datetime import datetime
 from PIL import Image
-
+import time
+import numpy as np
 # Based on - https://github.com/genicam/harvesters
 from harvesters.core import Harvester
 from params import GIGE_CTI, USB3_CTI
@@ -12,9 +13,9 @@ class Imager:
         self.h.add_file(USB3_CTI)
         self.h.add_file(GIGE_CTI)
         self.h.update()
-        num_devices = len(self.h.device_info_list)
-        print(f"Found {num_devices} devices")  # see all cameras
-        if num_devices == 0:
+        self.num_devices = len(self.h.device_info_list)
+        print(f"Found {self.num_devices} devices")  # see all cameras
+        if self.num_devices == 0:
             print("No devices found. If the camera is connected - call imager.clear_all() or restart the kernel and try again.")
         self.serial_ids = [info.serial_number for info in self.h.device_info_list]
         print(f"Devices IDs - {self.serial_ids}")  # see all cameras
@@ -25,11 +26,14 @@ class Imager:
         List of possible parameters to adjust"""
         print(dir(self.cams[0].remote_device.node_map))  # see all parameters
 
-    def update_params(self, ExposureTime, PixelFormat, AcquisitionFrameRate):
+    def update_params(self, ExposureTime=None, PixelFormat=None, AcquisitionFrameRate=None):
         for ia in self.cams:
-            ia.remote_device.node_map.ExposureTime.value = ExposureTime  # for example, change exposure time
-            ia.remote_device.node_map.PixelFormat.value = PixelFormat  # .symbolics instead of .value for options
-            ia.remote_device.node_map.AcquisitionFrameRate.value = AcquisitionFrameRate
+            if ExposureTime is not None:
+                ia.remote_device.node_map.ExposureTime.value = ExposureTime  # for example, change exposure time
+            if PixelFormat is not None:
+                ia.remote_device.node_map.PixelFormat.value = PixelFormat  # .symbolics instead of .value for options
+            if AcquisitionFrameRate is not None:
+                ia.remote_device.node_map.AcquisitionFrameRate.value = AcquisitionFrameRate
 
     def get_temperature(self):
         for ia in self.cams:
@@ -67,15 +71,30 @@ class Imager:
                     data = component.data
                 _2d = data.reshape(component.height, component.width)
                 raw_image = copy.deepcopy(_2d)
-                img = Image.fromarray(raw_image)
-                images_with_times.append((img, cur_time, cam_id))
+                # img = Image.fromarray(raw_image)
+                # images_with_times.append((img, cur_time, cam_id))
                 raw_images.append(raw_image)
         self.images = images_with_times
-        self.raw_images = raw_images
         if show_images:
             self.show_images()
         if save_images:
             self.save_images()
+
+        return raw_images
+
+    def capture_sequence(self, num_frames, sleep_seconds):
+        all_raw_images = []
+        arr = np.empty((num_frames,self.num_devices,2048,2448), dtype='uint8')
+        time.sleep(0.5)
+        for frame_num in range(num_frames):
+            raw_images = self.get_images(show_images=False, save_images=False)
+            # all_raw_images.append(raw_images)
+            arr[frame_num] = np.array(raw_images)
+            time.sleep(sleep_seconds)
+
+
+        return all_raw_images
+
 
     def clear_all(self):
         for ia in self.cams:
