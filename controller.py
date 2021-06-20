@@ -7,6 +7,7 @@ import numpy as np
 from harvesters.core import Harvester
 from params import GIGE_CTI, USB3_CTI
 
+
 class Imager:
     def __init__(self):
         self.h = Harvester()
@@ -16,7 +17,8 @@ class Imager:
         self.num_devices = len(self.h.device_info_list)
         print(f"Found {self.num_devices} devices")  # see all cameras
         if self.num_devices == 0:
-            print("No devices found. If the camera is connected - call imager.clear_all() or restart the kernel and try again.")
+            print(
+                "No devices found. If the camera is connected - call imager.clear_all() or restart the kernel and try again.")
         self.serial_ids = [info.serial_number for info in self.h.device_info_list]
         print(f"Devices IDs - {self.serial_ids}")  # see all cameras
         self.cams = [self.h.create_image_acquirer(serial_number=_id) for _id in self.serial_ids]
@@ -84,7 +86,7 @@ class Imager:
 
     def capture_sequence(self, num_frames, sleep_seconds):
         all_raw_images = []
-        arr = np.empty((num_frames,self.num_devices,2048,2448), dtype='uint8')
+        arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
         time.sleep(0.5)
         for frame_num in range(num_frames):
             raw_images = self.get_images(show_images=False, save_images=False)
@@ -92,9 +94,7 @@ class Imager:
             arr[frame_num] = np.array(raw_images)
             time.sleep(sleep_seconds)
 
-
         return all_raw_images
-
 
     def clear_all(self):
         for ia in self.cams:
