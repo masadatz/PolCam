@@ -57,16 +57,17 @@ class Imager:
         for img, img_time, cam_id in self.images:
             img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.jpeg')
 
-    def get_images(self, show_images, save_images):
+    def get_images(self, show_images, save_images, run_indx=0):
         images_with_times = []
         raw_images = []
+        metadata = []
         for cam_id, ia in zip(self.serial_ids, self.cams):
             cur_time = datetime.now()
 
             # acquire an image
             with ia.fetch_buffer() as buffer:
                 component = buffer.payload.components[0]
-                print(f"cam {cam_id} captured image of format {component.data_format} at {cur_time}")
+                print(f"{run_indx} - {cur_time} - {cam_id} captured {component.data_format} image ")
                 if component.data_format == 'Mono12Packed':
                     data = component.data >> 4
                 else:
@@ -76,25 +77,28 @@ class Imager:
                 # img = Image.fromarray(raw_image)
                 # images_with_times.append((img, cur_time, cam_id))
                 raw_images.append(raw_image)
+                metadata.append((run_indx, cur_time, cam_id))
         self.images = images_with_times
         if show_images:
             self.show_images()
         if save_images:
             self.save_images()
 
-        return raw_images
+        return raw_images, metadata
 
     def capture_sequence(self, num_frames, sleep_seconds):
         all_raw_images = []
-        arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
+        all_meta_data = []
+        # arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
         time.sleep(0.5)
         for frame_num in range(num_frames):
-            raw_images = self.get_images(show_images=False, save_images=False)
-            # all_raw_images.append(raw_images)
-            arr[frame_num] = np.array(raw_images)
+            raw_images, metadata = self.get_images(show_images=False, save_images=False, run_indx=frame_num)
+            all_raw_images.append(raw_images)
+            all_meta_data.extend(metadata)
+            # arr[frame_num] = np.array(raw_images)
             time.sleep(sleep_seconds)
 
-        return all_raw_images
+        return all_raw_images, all_meta_data
 
     def clear_all(self):
         for ia in self.cams:
