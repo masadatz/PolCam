@@ -13,4 +13,7 @@ Tested using SVS Vistek's Solution - download and install from
 
 If necessary, change the `USB3_CTI` and `GIGE_CTI` params in the `params.py` file according to yout installation.
 
-blup
+
+bla
+
+
