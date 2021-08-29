@@ -100,7 +100,7 @@ class Imager:
 
         return all_raw_images, all_meta_data
 
-    def clear_all(self):
-        for ia in self.cams:
-            ia.destroy()
-        self.h.reset()
+#    def clear_all(self):
+#        for ia in self.cams:
+#            ia.destroy()
+#        self.h.reset()
