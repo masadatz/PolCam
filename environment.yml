@@ -10,6 +10,7 @@ dependencies:
   - jupyter
   - nb_conda
   - opencv
+  - matplotlib
   - pip:
       - harvesters
       - git+https://github.com/elerac/polanalyser

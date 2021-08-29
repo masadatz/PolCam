@@ -7,6 +7,15 @@ import numpy as np
 from harvesters.core import Harvester
 from params import GIGE_CTI, USB3_CTI
 
+import cv2
+import polanalyser as pa
+import matplotlib.pyplot as plt
+from mpldatacursor import datacursor
+from harvesters.util.pfnc import mono_location_formats, \
+    rgb_formats, bgr_formats, \
+    rgba_formats, bgra_formats
+
+
 
 class Imager:
     def __init__(self):
@@ -100,7 +109,101 @@ class Imager:
 
         return all_raw_images, all_meta_data
 
-#    def clear_all(self):
-#        for ia in self.cams:
-#            ia.destroy()
-#        self.h.reset()
+    def clear_all(self):
+        for ia in self.cams:
+            ia.destroy()
+        self.h.reset()
+
+    def show_splitted_images(self, img_0, img_45, img_90, img_135):
+        Image.fromarray(img_0).show()
+        Image.fromarray(img_45).show()
+        Image.fromarray(img_90).show()
+        Image.fromarray(img_135).show()
+
+    def save_selected_fig(self, fig, i, title, block):
+        plt.figure(i)
+        im = plt.imshow(fig)
+        plt.colorbar(im)
+        datacursor()
+        plt.title(title)
+        plt.axis('off')
+        plt.savefig(title+'.png')
+      #  Image.fromarray(fig).show()
+        plt.show(block=block) #double??? what does it do????
+
+
+
+    def splitter(self):
+
+        # Based on https://github.com/elerac/polanalyser
+        init_image = self.capture_sequence(num_frames=1, sleep_seconds=0.2)
+        init_image = np.squeeze(np.array(init_image[0]))
+        img_demosaiced = pa.demosaicing(init_image)
+        img_0, img_45, img_90, img_135 = cv2.split(img_demosaiced)
+
+        #self.show_splitted_images(img_0, img_45, img_90, img_135)
+
+        Stokes = pa.calcLinearStokes([img_0, img_45, img_90, img_135], [0, 45, 90, 135])
+        I = Stokes[:, :, 0]
+        print(I)
+        DoLP = pa.cvtStokesToDoLP(Stokes)
+        AoLP = (180 / np.pi) * pa.cvtStokesToAoLP(Stokes) - 90
+
+        arr = [I / np.max(I),DoLP,AoLP]
+        titles = ['I','DoLP','AoLP']
+        blocks= [True,False,True]
+
+
+        for i in range(1,4):
+            self.save_selected_fig(arr[i-1], i, titles[i-1], blocks[i-1])
+
+
+    def video_in_action(self): #video of AolP,DOLP, Intensity. (to change photos?)
+        while True:
+            for ia in self.cams:
+                with ia.fetch_buffer() as buffer:
+                    # Work with the Buffer object. It consists of everything you need.
+                    _1d = buffer.payload.components[0].data
+                    # The buffer will automatically be queued.
+
+                    payload = buffer.payload
+                    component = payload.components[0]
+                    width = component.width
+                    height = component.height
+                    data_format = component.data_format
+
+                    # Reshape the image so that it can be drawn on the VisPy canvas:
+                    if data_format in mono_location_formats:
+                        content = component.data.reshape(height, width)  # the 2d photo, and if I want 3d?
+                    else:
+                        print('not in mono location format. check docs.')
+
+                    # Display the resulting frame
+                    img_demosaiced = pa.demosaicing(content)
+                    # Calculate the Stokes vector per-pixel
+                    angles = np.deg2rad([0, 45, 90, 135])
+                    img_stokes = pa.calcStokes(img_demosaiced, angles)
+                    # Convert the Stokes vector to Intensity, DoLP and AoLP
+                    img_intensity = pa.cvtStokesToIntensity(img_stokes)
+                    img_DoLP = pa.cvtStokesToDoLP(img_stokes)
+                    img_AoLP = pa.cvtStokesToAoLP(img_stokes)
+                    img_AoLP_cmapped = pa.applyColorToAoLP(img_AoLP)
+                    cv2.imshow('intensity', img_intensity)
+                    cv2.imshow('DolP', img_DoLP)
+                    cv2.imshow('img_AoLP_cmapped', img_AoLP_cmapped)
+
+            if cv2.waitKey(1) == ord('q'):
+                break
+
+        cv2.destroyAllWindows()
+
+
+    def full_action(self): #all the neceacerry orders for full action of the video
+        self._start_acquisitions()
+        self.video_in_action()
+        self._stop_acquisitions()
+        self.clear_all()
+
+
+
+
