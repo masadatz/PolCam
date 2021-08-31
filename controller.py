@@ -76,7 +76,7 @@ class Imager:
             # acquire an image
             with ia.fetch_buffer() as buffer:
                 component = buffer.payload.components[0]
-                print(f"{run_indx} - {cur_time} - {cam_id} captured {component.data_format} image ")
+                # print(f"{run_indx} - {cur_time} - {cam_id} captured {component.data_format} image ")
                 if component.data_format == 'Mono12Packed':
                     data = component.data >> 4
                 else:
@@ -98,16 +98,44 @@ class Imager:
     def capture_sequence(self, num_frames, sleep_seconds):
         all_raw_images = []
         all_meta_data = []
+        MARGIN = 0.0001  # 10us
+        frame_num = 1
+        start_time = time.time()
+        next_pic = start_time + sleep_seconds
         # arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
-        time.sleep(0.5)
-        for frame_num in range(num_frames):
-            raw_images, metadata = self.get_images(show_images=False, save_images=False, run_indx=frame_num)
-            all_raw_images.append(raw_images)
-            all_meta_data.extend(metadata)
+        # time.sleep(0.5)
             # arr[frame_num] = np.array(raw_images)
-            time.sleep(sleep_seconds)
+        while frame_num<=num_frames:
+            tm = time.time()
+            if (tm + MARGIN) > next_pic:
+                frame_num += 1  # integer counter
+                next_pic = start_time + frame_num * sleep_seconds
+                raw_images, metadata = self.get_images(show_images=False, save_images=False, run_indx=frame_num-1)
+                all_raw_images.append(raw_images)
+                all_meta_data.extend(metadata)
+
+            maxi=max((next_pic - tm) * 0.95, MARGIN)
+            # if maxi==MARGIN: print('margin!')
+            time.sleep(maxi)  # sleep for 90% of the remaining time
 
         return all_raw_images, all_meta_data
+
+    """
+    MARGIN = 0.001 #10us
+DELAY = 0.2
+num = 1
+start_time = time.time()
+next_pic = start_time + DELAY
+while True:
+    tm = time.time()
+    if (tm + MARGIN) > next_pic:
+        num += 1 # integer counter
+        next_pic = start_time + num * DELAY
+        print('take picture at {:.6f}'.format(tm))
+    time.sleep((next_pic - tm) * 0.9) # sleep for 90% of the remaining time
+
+    """
+
 
     def clear_all(self):
         for ia in self.cams:
