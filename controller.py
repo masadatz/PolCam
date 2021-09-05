@@ -95,7 +95,7 @@ class Imager:
 
         return raw_images, metadata
 
-    def capture_sequence(self, num_frames, sleep_seconds):
+    def capture_sequence(self, num_frames, sleep_seconds1, sleep_seconds2):
         all_raw_images = []
         all_meta_data = []
         # arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
@@ -105,7 +105,10 @@ class Imager:
             all_raw_images.append(raw_images)
             all_meta_data.extend(metadata)
             # arr[frame_num] = np.array(raw_images)
-            time.sleep(sleep_seconds)
+            if ((frame_num+1) % 5) ==0:
+                time.sleep(sleep_seconds1)
+            else:
+                time.sleep(sleep_seconds2)
 
         return all_raw_images, all_meta_data
 
