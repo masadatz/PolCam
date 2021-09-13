@@ -64,7 +64,7 @@ class Imager:
 
     def save_images(self):
         for img, img_time, cam_id in self.images:
-            img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.jpeg')
+            img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.tiff')
 
     def get_images(self, show_images, save_images, run_indx=0):
         images_with_times = []
@@ -130,7 +130,7 @@ class Imager:
         datacursor()
         plt.title(title)
         plt.axis('off')
-        plt.savefig(title+'.png')
+        plt.savefig(title+'.tiff')
       #  Image.fromarray(fig).show()
         plt.show(block=block) #double??? what does it do????
 
