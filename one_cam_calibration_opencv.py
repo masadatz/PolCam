@@ -20,7 +20,9 @@ objp = np.zeros((CHECKERBOARD[0]*CHECKERBOARD[1], 3), np.float32)
 objp[:,:2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
 prev_img_shape = None
 # Extracting path of individual image stored in a given directory
-images = glob.glob('*.jpg')
+print ('objp')
+print (objp)
+images = glob.glob('*.jpg') #not all!!!
 
 for fname in images:
     img = cv2.imread(fname)
@@ -33,6 +35,7 @@ for fname in images:
         objpoints.append(objp)
         # refining pixel coordinates for given 2d points.
         corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria) #cv2.cornerSubPix(image, corners, winSize, zeroZone, criteria)
+
         imgpoints.append(corners2)
         # Draw and display the corners
         img = cv2.drawChessboardCorners(img, CHECKERBOARD, corners2, ret)
@@ -42,7 +45,11 @@ for fname in images:
 cv2.destroyAllWindows()
 
 h,w = img.shape[:2]
+print ('objpoints')
+print (objpoints)
 
+print ('imgpoints')
+print (imgpoints)
 """
 Performing camera calibration by 
 passing the value of known 3D points (objpoints)
@@ -52,7 +59,7 @@ detected corners (imgpoints)
 #returns: canera matrix (K), distortion coefficient (k1 k2 p1 p2 k3), R, t
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None) # (objectPoints, imagePoints, imageSize)
 
-print("Camera matrix : \n") #k?
+print("Camera matrix : \n") #k - intrinsic matrix
 print(mtx)
 print("dist : \n")
 print(dist)

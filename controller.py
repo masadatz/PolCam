@@ -214,7 +214,7 @@ while True:
                     # Convert the Stokes vector to Intensity, DoLP and AoLP
                     img_intensity = pa.cvtStokesToIntensity(img_stokes)
                     img_DoLP = pa.cvtStokesToDoLP(img_stokes)
-                    img_AoLP = pa.cvtStokesToAoLP(img_stokes)
+                    img_AoLP = pa.cvtStokesToAoLP(img_stokes)*(180 / np.pi)-90
                     img_AoLP_cmapped = pa.applyColorToAoLP(img_AoLP)
                     cv2.imshow('intensity', img_intensity)
                     cv2.imshow('DolP', img_DoLP)
