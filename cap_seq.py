@@ -29,6 +29,9 @@ imager.clear_all()
 
 #print(meta_data)
 
+'''
+for Histogram
+'''
 num_frames=100
 diff=[]
 
@@ -41,11 +44,13 @@ for i in range (num_frames):
     print('index',i, 'diffi',diffi)
     diff.append(diffi)
 
+
 print('diff')
 print(diff)
 print(len(diff))
 
 print('max in diff:' ,max(diff), 'min in diff', min(diff))
+
 
 df = pd.DataFrame(diff, columns=['diffrences'])
 df['diffrences'].plot(kind='hist', bins=20)
