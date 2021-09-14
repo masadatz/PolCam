@@ -78,7 +78,7 @@ class Imager:
                 component = buffer.payload.components[0]
                 print(f"{run_indx} - {cur_time} - {cam_id} captured {component.data_format} image ")
                 if component.data_format == 'Mono12Packed':
-                    data = component.data >> 4
+                    data = component.data #>> 4
                 else:
                     data = component.data
                 _2d = data.reshape(component.height, component.width)
