@@ -6,7 +6,8 @@ import numpy as np
 # Based on - https://github.com/genicam/harvesters
 from harvesters.core import Harvester
 from params import GIGE_CTI, USB3_CTI
-
+import os
+import pathlib
 import cv2
 import polanalyser as pa
 import matplotlib.pyplot as plt
@@ -231,6 +232,63 @@ while True:
         self.video_in_action()
         self._stop_acquisitions()
         self.clear_all()
+
+    #create folders to the images of the geometric calibraion.
+    def create_folders_geo_calib(self):
+        path = pathlib.Path().resolve()
+        dir = 'geometric_calib_images'
+        path_dir = os.path.join(path,dir)
+
+        try:
+            os.makedirs(path_dir)
+            print('created successfully')
+        except:
+            print('already exists')
+
+        for i in range(self.num_devices):
+            mid_dir = 'camera' + str(i)
+            path_mid_dir = os.path.join(path_dir, mid_dir)
+            try:
+                os.makedirs(path_mid_dir)
+                print('created successfully')
+            except:
+                print('already exists')
+
+    #accquiring_and_saving_photos to the geometric calibration
+    def accquiring_and_saving_photos(self, num_frames,time_sleep):
+        self.create_folders_geo_calib()
+        cur_path = pathlib.Path().resolve()
+        path = os.path.join(cur_path,'geometric_calib_images')
+        #print(path)
+        all_raw_imgs, meta_data =self.capture_sequence(num_frames,time_sleep)
+        for i in range(self.num_devices):
+            for j in range(num_frames):
+                dir = '\camera' + str(i)
+                full = str(path)+dir+'\Frame'+str(j)+'.png'
+                cv2.imwrite(full, all_raw_imgs[j][i])
+                print('saving...')
+
+    #full action to get photos to geo
+    def full_acuire_to_geo_calib(self):
+        self._start_acquisitions()
+        self.accquiring_and_saving_photos(num_frames=3,time_sleep=6)
+        self._stop_acquisitions()
+        self.clear_all()
+
+
+if __name__ == '__main__':
+
+
+    imager = Imager()
+    imager._start_acquisitions()
+    # raw,meta=imager.capture_sequence(3,0.2)
+    # cv2.imshow('img',raw[0][0])
+    # cv2.waitKey(0)
+    imager.accquiring_and_saving_photos(num_frames=3,time_sleep=0.2)
+    imager._stop_acquisitions()
+    imager.clear_all()
+    #imager.full_acuire_to_geo_calib()
+
 
 
 
