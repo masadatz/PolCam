@@ -5,13 +5,13 @@ import cv2
 import polanalyser as pa
 from PIL import Image
 import numpy as np
-from scipy.linalg import pinv2
+from scipy.linalg import inv, pinv2
 import scipy as sc
 import matplotlib.pyplot as plt
 from mpldatacursor import datacursor
 
 #Simulate groud truth normalized Stokes Vector
-def sim_GT_Snorm(AoLP_true = np.deg2rad(range(0,185,5)), DoLP_true = 0.999, haxis = 2448, vaxis = 2048, n_im = 37):
+def sim_GT_Snorm(AoLP_true, DoLP_true = 0.999, haxis = 2448, vaxis = 2048, n_im = 37):
     GT_Snorm = np.ones([3,n_im,vaxis,haxis])
     q_true_val = DoLP_true*np.cos(2*AoLP_true)
     u_true_val = DoLP_true*np.sin(2*AoLP_true)
@@ -49,26 +49,31 @@ def save_sim_images(images,show = False):
            plt.show()
 
 # DoLP and AoLP error
-def mean_error(images, GT_Snorm, DoLP_true = 0.999, AoLP_true = np.deg2rad(range(0,185,5)), calibrate = False):
+def mean_error( AoLP_true, images, GT_Snorm, DoLP_true = 0.999,
+               calibrate = False,pre_demo=False):
     n_im = images.shape[0]
     vaxis = images.shape[1]
     haxis = images.shape[2]
     DoLP_Error = np.zeros(n_im)
     AoLP_Error = np.zeros(n_im)
     AoLP_sum = 0
+    a,b,c,d = Cal_params_after_demo(images, GT_Snorm)
     X_mat = Cal_params(images, GT_Snorm)
     for i in range(n_im):
         images_demosaiced = pa.demosaicing(images[i])
         img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
         Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1), np.deg2rad([0,45,90,135]))
         if calibrate:
-            Stokes_cal = Cal(Stokes, X_mat)
+            if pre_demo:
+                Stokes_cal = Cal_after_demo(Stokes,a,b,c,d)
+            else:
+                Stokes_cal = Cal(Stokes, X_mat)
             Stokes = Stokes_cal
         DoLP_with_noise= pa.cvtStokesToDoLP(Stokes)
         AoLP_with_noise = pa.cvtStokesToAoLP(Stokes)
         DoLP_Error[i] = np.sum(np.abs(DoLP_with_noise-DoLP_true))
         AoLP_Error[i] = np.sum(np.abs(AoLP_with_noise-AoLP_true[i]))
-        AoLP_sum +=  haxis*vaxis*AoLP_true[i]
+        AoLP_sum +=  haxis*vaxis*np.abs(AoLP_true[i])
     mean_DoLP_Error = np.sum(DoLP_Error)/(n_im*haxis*vaxis*DoLP_true)
     mean_AoLP_Error = np.sum(AoLP_Error)/AoLP_sum
     return [mean_DoLP_Error, mean_AoLP_Error]
@@ -125,7 +130,7 @@ def Cal(Stokes, X_mat):
         for j in range(H):
             M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
             #Min = np.linalg.inv(M)
-            Min = pinv2(M)
+            Min = inv(M)
             S =  np.array([[q_meas[i,j]],[u_meas[i,j]]])
             Scal = np.matmul(Min, S)
             Stokes_cal[i,j,1]=Scal[0]
@@ -133,13 +138,91 @@ def Cal(Stokes, X_mat):
     return  Stokes_cal
 
 
+def Cal_params_after_demo(images, GT_Snorm):
+    #calibration
+
+    n_im = images.shape[0]
+    vaxis = images.shape[1]
+    haxis = images.shape[2]
+
+    B0_Mat = np.zeros([n_im, haxis * vaxis])
+    B45_Mat = np.zeros([n_im, haxis * vaxis])
+    B90_Mat = np.zeros([n_im, haxis * vaxis])
+    B135_Mat = np.zeros([n_im, haxis * vaxis])
+
+    A_Mat = np.zeros([n_im, 3])
+    q_true = GT_Snorm[1,:,1,1]
+    u_true = GT_Snorm[2,:,1,1]
+    A_Mat[:,0]=1
+    A_Mat[:,1] = np.transpose(q_true)
+    A_Mat[:,2] = np.transpose(u_true)
+
+
+    for i in range(n_im):
+        images_demosaiced = pa.demosaicing(images[i])
+        img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+        B0_Mat[i] = img_0.flatten()
+        B45_Mat[i] = img_45.flatten()
+        B90_Mat[i] = img_90.flatten()
+        B135_Mat[i] = img_135.flatten()
+
+    # for real images we need normalization
+    #    I = 0.5*(images[:,1::2, 1::2]+images[:,0::2, 1::2]+images[:,0::2, 0::2]+images[:,1::2, 0::2])
+    #    images[:,1::2, 1::2]=  images[:,1::2, 1::2]/I
+    #    images[:,0::2, 1::2]=  images[:,0::2, 1::2]/I
+    #    images[:,0::2, 0::2]=  images[:,0::2, 0::2]/I
+    #    images[:,1::2, 0::2]=  images[:,1::2, 0::2]/I
+
+    Xa = np.linalg.lstsq(A_Mat, B0_Mat, rcond = None)
+    Xc = np.linalg.lstsq(A_Mat, B45_Mat, rcond=None)
+    Xb = np.linalg.lstsq(A_Mat, B90_Mat, rcond = None)
+    Xd = np.linalg.lstsq(A_Mat, B135_Mat, rcond=None)
+
+    a = np.reshape(np.array(Xa[0]), [3, vaxis, haxis])
+    b = np.reshape(np.array(Xb[0]), [3, vaxis, haxis])
+    c = np.reshape(np.array(Xc[0]), [3, vaxis, haxis])
+    d = np.reshape(np.array(Xd[0]), [3, vaxis, haxis])
+    # each has the three parameters for a pixel
+    return a,b,c,d
+
+def Cal_after_demo(Stokes, a,b,c,d):
+    Stokes_cal = np.ones(Stokes.shape)
+    q_meas = Stokes[...,1]
+    u_meas = Stokes[...,2]
+    H = q_meas.shape[0]
+    V = q_meas.shape[1]
+    a1, a2, a3 = cv2.split(np.moveaxis(a,0,-1))
+    b1, b2, b3 = cv2.split(np.moveaxis(b,0,-1))
+    c1, c2, c3 = cv2.split(np.moveaxis(c,0,-1))
+    d1, d2, d3 = cv2.split(np.moveaxis(d,0,-1))
+
+    ab1 = a1-b1
+    cd1 = c1-d1
+    ab2 = a2-b2
+    cd2 = c2-d2
+    ab3 = a3-b3
+    cd3 = c3-d3
+    for i in range(V):
+        for j in range(H):
+            M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
+
+            Min = inv(M)
+            S =  np.array([[q_meas[i,j]],[u_meas[i,j]]])
+            Scal = np.matmul(Min, S)
+            Stokes_cal[i,j,1]=Scal[0]
+            Stokes_cal[i,j,2]=Scal[1]
+    return  Stokes_cal
+
 def main():
-    GT_Snorm = sim_GT_Snorm(haxis = 10, vaxis = 10, n_im = 37)
+    AoLP_true = np.mod(np.deg2rad(range(0, 185, 5)),np.pi)
+    GT_Snorm = sim_GT_Snorm(AoLP_true, haxis = 10, vaxis = 10, n_im = 37)
     noisy = sim_Noisy_images(GT_Snorm, noise_std=5)
-    m_error_0 = mean_error(noisy,GT_Snorm)
-    m_error_1 = mean_error(noisy,GT_Snorm, calibrate=True)
-    print("initial error ",m_error_0)
+    m_error_0 = mean_error(AoLP_true, noisy,GT_Snorm)
+    m_error_1 = mean_error(AoLP_true, noisy,GT_Snorm, calibrate=True)
+    m_error_2 = mean_error(AoLP_true, noisy, GT_Snorm, calibrate=True, pre_demo=True)
+    print("initial error ", m_error_0)
     print("Calibrated error", m_error_1)
+    print("Calibrated error with precalibration demosaicing", m_error_2)
 
 if __name__ == "__main__":
     main()
