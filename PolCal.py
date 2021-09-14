@@ -5,6 +5,8 @@ import cv2
 import polanalyser as pa
 from PIL import Image
 import numpy as np
+from scipy.linalg import pinv2
+import scipy as sc
 import matplotlib.pyplot as plt
 from mpldatacursor import datacursor
 
@@ -54,12 +56,12 @@ def mean_error(images, GT_Snorm, DoLP_true = 0.999, AoLP_true = np.deg2rad(range
     DoLP_Error = np.zeros(n_im)
     AoLP_Error = np.zeros(n_im)
     AoLP_sum = 0
+    X_mat = Cal_params(images, GT_Snorm)
     for i in range(n_im):
         images_demosaiced = pa.demosaicing(images[i])
         img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
-        Stokes = pa.calcLinearStokes([img_0, img_45, img_90, img_135], np.deg2rad([0,45,90,135]))
+        Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1), np.deg2rad([0,45,90,135]))
         if calibrate:
-            X_mat = Cal_params(images,GT_Snorm)
             Stokes_cal = Cal(Stokes, X_mat)
             Stokes = Stokes_cal
         DoLP_with_noise= pa.cvtStokesToDoLP(Stokes)
@@ -75,10 +77,9 @@ def Cal_params(images, GT_Snorm):
     #calibration
 
     n_im = images.shape[0]
-    haxis = images.shape[1]
-    vaxis = images.shape[2]
+    vaxis = images.shape[1]
+    haxis = images.shape[2]
 
-    images = np.zeros([n_im,haxis,vaxis])
     B_Mat = np.zeros([n_im,haxis*vaxis])
     A_Mat = np.zeros([n_im, 3])
     q_true = GT_Snorm[1,:,1,1]
@@ -98,14 +99,14 @@ def Cal_params(images, GT_Snorm):
     #    images[:,0::2, 0::2]=  images[:,0::2, 0::2]/I
     #    images[:,1::2, 0::2]=  images[:,1::2, 0::2]/I
 
-    x = np.linalg.lstsq(A_Mat, B_Mat)
-    X_mat = np.reshape(np.array(x[0]),[3,haxis,vaxis])# each column has the three parameters for a pixel
+    x = np.linalg.lstsq(A_Mat, B_Mat,rcond = None)
+    X_mat = np.reshape(np.array(x[0]),[3,vaxis,haxis])# each column has the three parameters for a pixel
     return X_mat
 
 def Cal(Stokes, X_mat):
     Stokes_cal = np.ones(Stokes.shape)
-    q_meas = Stokes[1]
-    u_meas = Stokes[2]
+    q_meas = Stokes[...,1]
+    u_meas = Stokes[...,2]
     H = q_meas.shape[0]
     V = q_meas.shape[1]
     a1_in = pa.demosaicing(X_mat[0])
@@ -120,23 +121,21 @@ def Cal(Stokes, X_mat):
     cd2 = c2-d2
     ab3 = a3-b3
     cd3 = c3-d3
-    for i in range(H):
-        for j in range(V):
+    for i in range(V):
+        for j in range(H):
             M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
-            Min = np.linalg.inv(M)
+            #Min = np.linalg.inv(M)
+            Min = pinv2(M)
             S =  np.array([[q_meas[i,j]],[u_meas[i,j]]])
             Scal = np.matmul(Min, S)
-            Stokes_cal[1,i,j]=Scal[0,0]
-            Stokes_cal[2,i,j]=Scal[0,1]
+            Stokes_cal[i,j,1]=Scal[0]
+            Stokes_cal[i,j,2]=Scal[1]
     return  Stokes_cal
 
 
 def main():
     GT_Snorm = sim_GT_Snorm(haxis = 10, vaxis = 10, n_im = 37)
-    noisy = sim_Noisy_images(GT_Snorm)
-    images_demosaiced = pa.demosaicing(noisy[0])
-    img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
-    Stokes = pa.calcLinearStokes([img_0, img_45, img_90, img_135], np.deg2rad([0, 45, 90, 135]))
+    noisy = sim_Noisy_images(GT_Snorm, noise_std=5)
     m_error_0 = mean_error(noisy,GT_Snorm)
     m_error_1 = mean_error(noisy,GT_Snorm, calibrate=True)
     print("initial error ",m_error_0)
