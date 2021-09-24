@@ -72,7 +72,7 @@ criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 objp = np.zeros((chessboardSize[0] * chessboardSize[1], 3), np.float32)
 objp[:,:2] = np.mgrid[0:chessboardSize[0],0:chessboardSize[1]].T.reshape(-1,2)
 
-objp = objp * 20 #change according to the length of each squre
+objp = objp * 30 #change according to the length of each squre
 
 # Arrays to store object points and image points from all the images.
 objpoints = [] # 3d point in real world space
