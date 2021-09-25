@@ -278,13 +278,14 @@ while True:
 
 if __name__ == '__main__':
     imager = Imager()
-    imager._start_acquisitions()
+    imager.create_folders_geo_calib()
+   # imager._start_acquisitions()
     # raw,meta=imager.capture_sequence(3,0.2)
     # cv2.imshow('img',raw[0][0])
     # cv2.waitKey(0)
    # imager.accquiring_and_saving_photos(num_frames=3,time_sleep=0.2)
-    imager._stop_acquisitions()
-    imager.clear_all()
+   # imager._stop_acquisitions()
+    #imager.clear_all()
     #imager.full_acuire_to_geo_calib()
 
 
