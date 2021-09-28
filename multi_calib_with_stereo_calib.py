@@ -11,22 +11,52 @@ import numpy as np
 import cv2 as cv
 import glob
 
+
+'''
+saves single calibration parameters in a file.
+'''
+
+
+def save_single_calib_param(ind_cam, list_param): #[retL, cameraMatrixL, distL, rvecsL, tvecsL]
+    cv_file_single = cv.FileStorage('single calibration cam '+ str(ind_cam)+'.xml', cv.FILE_STORAGE_WRITE)
+    cv_file_single.write('ret',list_param[0] )
+    cv_file_single.write('cameraMatrix', list_param[1])
+    cv_file_single.write('dist', list_param[2])
+    cv_file_single.write('rvecs', np.array(list_param[3]))
+    cv_file_single.write('tvecs', np.array(list_param[4]))
+    cv_file_single.release()
+
+
+
+
+
 '''
 make equal length of vectors from 2 differente cameras.
 '''
 
 def equaly_length(ind_other):
     list0=all_img_points_success[0]
+    print(list0)
     list_other=all_img_points_success[ind_other]
+    print(list_other)
     new0=[]
     new_other=[]
+    ind0=0
+    ind2=0
     for i in range (len(list0)):
-        if list0[i]==False: continue
-        if list_other[i]==False: continue
-        new0.append(list0[i])
-        new_other.append(list_other[i])
+        if list0[i]==False and list_other[i]==True:
+            ind2+=1
+            continue
+        if list_other[i]==False and list0[i]==True:
+            ind0+=1
+            continue
+        if list_other[i] == True and list0[i] == True:
+            new0.append(all_img_points[0][ind0])
+            new_other.append(all_img_points[ind_other][ind2])
+            ind0+=1
+            ind2+=1
 
-    len_min = len(new0)
+    len_min=len(new0)
     return len_min,new0, new_other
 
 '''
@@ -84,8 +114,8 @@ def single_calibration(ind_cam, images_per_cam, change_background=False):
             # refining pixel coordinates for given 2d points.
             corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1),
                                         criteria)  # cv2.cornerSubPix(image, corners, winSize, zeroZone, criteria)
-            print(type(corners2))
-            print(corners2)
+            #print(type(corners2))
+            #print(corners2)
             all_img_points[ind_cam].append(corners2) #maybe all_img_points[ind_cam].append(corners2)
             all_img_points_success[ind_cam].append(True)
             #print(all_img_points)
@@ -96,15 +126,17 @@ def single_calibration(ind_cam, images_per_cam, change_background=False):
         else:
             all_img_points_success[ind_cam].append(False)
          #   objpoints2[ind_cam].append(objp)
-    print(all_img_points[ind_cam])
-    list_calibration = ()
+    #print(all_img_points[ind_cam])
+    list_calibration = []
     if all_img_points[ind_cam]!=[]:
         list_calibration= cv.calibrateCamera(objpoints2[ind_cam], all_img_points[ind_cam], gray.shape[::-1], None,
                                                        None)  # (objectPoints, imagePoints, imageSize) #retL, cameraMatrixL, distL, rvecsL, tvecsL
+        list_calibration=list(list_calibration)
         success[ind_cam]=True
         print(type(list_calibration))
         height, width, channels = img.shape
-        list_calibration,roi = cv.getOptimalNewCameraMatrix(list_calibration[1], list_calibration[2], (width, height), 1, (width, height))
+        matrix,roi = cv.getOptimalNewCameraMatrix(list_calibration[1], list_calibration[2], (width, height), 1, (width, height))
+        list_calibration[1]=matrix
 
 
     return list_calibration
@@ -153,6 +185,14 @@ gray0=[]
 for ind_cam in range(num_of_cams):
     images_per_cam = sorted(glob.glob('geometric_calib_images_2/camera'+str(ind_cam+1)+'/*.png'))
     dict_calib_per_cam[ind_cam]=single_calibration(ind_cam=ind_cam,images_per_cam=images_per_cam, change_background=True)
+    print('list calibration:')
+    lisi = dict_calib_per_cam[ind_cam]
+    #print(dict_calib_per_cam[ind_cam])
+    print(len(dict_calib_per_cam[ind_cam]))
+
+    if len(dict_calib_per_cam[ind_cam])>0:
+        save_single_calib_param(ind_cam=ind_cam,list_param= dict_calib_per_cam[ind_cam])
+
     print('next!')
 
 cv.destroyAllWindows()
@@ -169,6 +209,14 @@ for ind_cam in range(1,num_of_cams):
     if success[ind_cam]:
         len_min,new0 , new_other = equaly_length(ind_cam)
         objpoints_now = [objp]*len_min
+        print('nowwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww')
+       # print(objpoints_now)
+        print('beforeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')
+        #print(objpoints2[0])
+        #print(type(new0))
+        #print(new0)
+        #print(type(all_img_points[2]))
+        #print(all_img_points[2])
         stereo_calib(ind_per=ind_cam,imgpoints0=new0, imgpoints_other=new_other, objpoints_now=objpoints_now)
 
 '''
@@ -188,10 +236,13 @@ for ind_cam in range(1,num_of_cams):
 
         print("Saving parameters!")
         cv_file = cv.FileStorage('stereoMap_per_'+str(ind_cam)+'.xml', cv.FILE_STORAGE_WRITE)
+        print('len stereo map:')
+        print(len(stereoMap0))
+        print(stereoMap0)
 
         cv_file.write('stereoMapL_x', stereoMap0[0])
         cv_file.write('stereoMapL_y', stereoMap0[1])
         cv_file.write('stereoMapR_x', stereoMap_other[0])
         cv_file.write('stereoMapR_y', stereoMap_other[1])
 
-cv_file.release()
+        cv_file.release()
