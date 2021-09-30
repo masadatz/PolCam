@@ -11,7 +11,12 @@ import matplotlib.pyplot as plt
 from mpldatacursor import datacursor
 
 #Simulate groud truth normalized Stokes Vector
-def sim_GT_Snorm(AoLP_true, DoLP_true = 0.999, haxis = 2448, vaxis = 2048, n_im = 37):
+def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2448, vaxis = 2048):
+    if AoLP_true.shape == ():
+        AoLP_true = np.array([AoLP_true])
+    if DoLP_true.shape == ():
+        DoLP_true = np.array([DoLP_true])
+    n_im= AoLP_true.shape[0]
     GT_Snorm = np.ones([3,n_im,vaxis,haxis])
     q_true_val = DoLP_true*np.cos(2*AoLP_true)
     u_true_val = DoLP_true*np.sin(2*AoLP_true)
@@ -20,18 +25,26 @@ def sim_GT_Snorm(AoLP_true, DoLP_true = 0.999, haxis = 2448, vaxis = 2048, n_im 
         GT_Snorm[2,i,:,:] = u_true_val[i]
     return GT_Snorm
 
-#Simulate mono images, no demosaicing
-def sim_Noisy_images(GT_Snorm, noise_std=5):
+#Simulate images, no demosaicing
+# Two types of error, 1. Random noise, averaged over av_n images
+#                     2. Error per pixel type, taken from normal STD
+def sim_Noisy_images(GT_Snorm, error_by_type, av_n=5, ):
     t_guess = 1
     alpha_d = np.ones(GT_Snorm[0].shape)
+    L_noise = np.ones(GT_Snorm[0].shape)
     alpha_d[:,1::2, 1::2]=  0
     alpha_d[:,0::2, 1::2]=  45
     alpha_d[:,0::2, 0::2]=  90
     alpha_d[:,1::2, 0::2]=  135
     alpha = np.deg2rad(alpha_d)
     L = 0.5*t_guess*(GT_Snorm[0]+ GT_Snorm[1]*np.cos(2*alpha)+GT_Snorm[2]*np.sin(2*alpha))
-    noise =  np.random.normal(0.0,noise_std/100,L.shape)
-    L_noise = L*(1+noise)
+    #av_n simulates the number of photos averaged for single Stokes vector image
+    noise =  np.mean(np.random.normal(0.0,1/100,np.array([av_n,L.shape[0],L.shape[1],L.shape[2]])),axis=0)
+    L_noise[:, 1::2, 1::2] = L[:, 1::2, 1::2] * (1 + error_by_type[0])
+    L_noise[:, 0::2, 1::2] = L[:, 0::2, 1::2] * (1 + error_by_type[1])
+    L_noise[:, 0::2, 0::2] = L[:, 0::2, 0::2] * (1 + error_by_type[2])
+    L_noise[:, 1::2, 0::2] = L[:, 1::2, 0::2] * (1 + error_by_type[3])
+    L_noise = L_noise*(1+noise)
     return L_noise
 
 #Show noisy images
@@ -49,34 +62,38 @@ def save_sim_images(images,show = False):
            plt.show()
 
 # DoLP and AoLP error
-def mean_error( AoLP_true, images, GT_Snorm, DoLP_true = 0.999,
-               calibrate = False,pre_demo=False):
+def mean_error( AoLP_true, images, GT_Snorm, X_mat, DoLP_true = 0.999,
+               calibrate = False):
     n_im = images.shape[0]
     vaxis = images.shape[1]
     haxis = images.shape[2]
     DoLP_Error = np.zeros(n_im)
     AoLP_Error = np.zeros(n_im)
+    q_Error = np.zeros(n_im)
+    u_Error = np.zeros(n_im)
     AoLP_sum = 0
-    a,b,c,d = Cal_params_after_demo(images, GT_Snorm)
-    X_mat = Cal_params(images, GT_Snorm)
     for i in range(n_im):
         images_demosaiced = pa.demosaicing(images[i])
         img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+        # for real images we need normalization
+
         Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1), np.deg2rad([0,45,90,135]))
         if calibrate:
-            if pre_demo:
-                Stokes_cal = Cal_after_demo(Stokes,a,b,c,d)
-            else:
-                Stokes_cal = Cal(Stokes, X_mat)
+            Stokes_cal = Cal(Stokes, X_mat)
             Stokes = Stokes_cal
         DoLP_with_noise= pa.cvtStokesToDoLP(Stokes)
         AoLP_with_noise = pa.cvtStokesToAoLP(Stokes)
-        DoLP_Error[i] = np.sum(np.abs(DoLP_with_noise-DoLP_true))
-        AoLP_Error[i] = np.sum(np.abs(AoLP_with_noise-AoLP_true[i]))
-        AoLP_sum +=  haxis*vaxis*np.abs(AoLP_true[i])
-    mean_DoLP_Error = np.sum(DoLP_Error)/(n_im*haxis*vaxis*DoLP_true)
-    mean_AoLP_Error = np.sum(AoLP_Error)/AoLP_sum
-    return [mean_DoLP_Error, mean_AoLP_Error]
+        DoLP_Error[i] = np.sum(np.abs(DoLP_with_noise-DoLP_true))/(haxis*vaxis)
+        AoLP_Error[i] = np.sum(np.abs(AoLP_with_noise-AoLP_true[i]))/(haxis*vaxis)
+        #AoLP_sum +=  haxis*vaxis*np.abs(AoLP_true[i])
+        q_Error[i] = np.sum(np.abs(Stokes[...,1]-GT_Snorm[1,i,:,:]))
+        u_Error[i] = np.sum(np.abs(Stokes[...,2]-GT_Snorm[2,i,:,:]))
+    #mean_DoLP_Error = np.sum(DoLP_Error)/(n_im*haxis*vaxis*DoLP_true)
+    #mean_AoLP_Error = np.sum(AoLP_Error)/AoLP_sum
+    #return [mean_DoLP_Error, mean_AoLP_Error]
+    #mean_q_error = np.sum(q_Error)/np.sum(np.abs(GT_Snorm[1]))
+    #mean_u_error = np.sum(u_Error) / np.sum(np.abs(GT_Snorm[2]))
+    return [DoLP_Error, AoLP_Error]
 
 def Cal_params(images, GT_Snorm):
     #calibration
@@ -90,6 +107,11 @@ def Cal_params(images, GT_Snorm):
     q_true = GT_Snorm[1,:,1,1]
     u_true = GT_Snorm[2,:,1,1]
 
+    #for real images we need normalization
+    #I = 0.5*(images[:,1::2, 1::2]+images[:,0::2, 1::2]+images[:,0::2, 0::2]+images[:,1::2, 0::2])
+    #images=  images/I
+
+
     for i in range(n_im):
         B_Mat[i] = images[i].flatten()
 
@@ -97,12 +119,6 @@ def Cal_params(images, GT_Snorm):
     A_Mat[:,1] = np.transpose(q_true)
     A_Mat[:,2] = np.transpose(u_true)
 
-    # for real images we need normalization
-    #    I = 0.5*(images[:,1::2, 1::2]+images[:,0::2, 1::2]+images[:,0::2, 0::2]+images[:,1::2, 0::2])
-    #    images[:,1::2, 1::2]=  images[:,1::2, 1::2]/I
-    #    images[:,0::2, 1::2]=  images[:,0::2, 1::2]/I
-    #    images[:,0::2, 0::2]=  images[:,0::2, 0::2]/I
-    #    images[:,1::2, 0::2]=  images[:,1::2, 0::2]/I
 
     x = np.linalg.lstsq(A_Mat, B_Mat,rcond = None)
     X_mat = np.reshape(np.array(x[0]),[3,vaxis,haxis])# each column has the three parameters for a pixel
@@ -131,7 +147,8 @@ def Cal(Stokes, X_mat):
             M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
             #Min = np.linalg.inv(M)
             Min = inv(M)
-            S =  np.array([[q_meas[i,j]],[u_meas[i,j]]])
+            S =  np.array([  [ q_meas[i,j]-ab1[i,j] ],
+                             [ u_meas[i,j]-cd1[i,j] ]  ])
             Scal = np.matmul(Min, S)
             Stokes_cal[i,j,1]=Scal[0]
             Stokes_cal[i,j,2]=Scal[1]
@@ -166,17 +183,10 @@ def Cal_params_after_demo(images, GT_Snorm):
         B90_Mat[i] = img_90.flatten()
         B135_Mat[i] = img_135.flatten()
 
-    # for real images we need normalization
-    #    I = 0.5*(images[:,1::2, 1::2]+images[:,0::2, 1::2]+images[:,0::2, 0::2]+images[:,1::2, 0::2])
-    #    images[:,1::2, 1::2]=  images[:,1::2, 1::2]/I
-    #    images[:,0::2, 1::2]=  images[:,0::2, 1::2]/I
-    #    images[:,0::2, 0::2]=  images[:,0::2, 0::2]/I
-    #    images[:,1::2, 0::2]=  images[:,1::2, 0::2]/I
-
     Xa = np.linalg.lstsq(A_Mat, B0_Mat, rcond = None)
-    Xc = np.linalg.lstsq(A_Mat, B45_Mat, rcond=None)
+    Xc = np.linalg.lstsq(A_Mat, B45_Mat, rcond= None)
     Xb = np.linalg.lstsq(A_Mat, B90_Mat, rcond = None)
-    Xd = np.linalg.lstsq(A_Mat, B135_Mat, rcond=None)
+    Xd = np.linalg.lstsq(A_Mat, B135_Mat, rcond= None)
 
     a = np.reshape(np.array(Xa[0]), [3, vaxis, haxis])
     b = np.reshape(np.array(Xb[0]), [3, vaxis, haxis])
@@ -204,25 +214,91 @@ def Cal_after_demo(Stokes, a,b,c,d):
     cd3 = c3-d3
     for i in range(V):
         for j in range(H):
-            M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
-
+            M = np.array([[ab2[i,j], ab3[i,j]],
+                          [cd2[i,j], cd3[i,j]]])
             Min = inv(M)
-            S =  np.array([[q_meas[i,j]],[u_meas[i,j]]])
+            S =  np.array([  [ q_meas[i,j]-ab1[i,j] ],
+                             [ u_meas[i,j]-cd1[i,j] ]  ])
             Scal = np.matmul(Min, S)
             Stokes_cal[i,j,1]=Scal[0]
             Stokes_cal[i,j,2]=Scal[1]
     return  Stokes_cal
 
 def main():
-    AoLP_true = np.mod(np.deg2rad(range(0, 185, 5)),np.pi)
-    GT_Snorm = sim_GT_Snorm(AoLP_true, haxis = 10, vaxis = 10, n_im = 37)
-    noisy = sim_Noisy_images(GT_Snorm, noise_std=5)
-    m_error_0 = mean_error(AoLP_true, noisy,GT_Snorm)
-    m_error_1 = mean_error(AoLP_true, noisy,GT_Snorm, calibrate=True)
-    m_error_2 = mean_error(AoLP_true, noisy, GT_Snorm, calibrate=True, pre_demo=True)
-    print("initial error ", m_error_0)
-    print("Calibrated error", m_error_1)
-    print("Calibrated error with precalibration demosaicing", m_error_2)
+    #simulated images for finding calibration parameter matrices
+
+    AoLP_deg  =np.array(range(-90, 90, 10))
+    AoLP_true = np.mod(np.deg2rad(AoLP_deg),np.pi)
+    GT_Snorm = sim_GT_Snorm(AoLP_true, haxis = 100, vaxis = 100)
+    error_std = 5
+    error_by_type = np.random.normal(0.0, error_std, 4)
+    noisy = sim_Noisy_images(GT_Snorm, error_by_type, av_n = 100)
+    #I = 0.25 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
+    #If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
+    #noisy = noisy/ If
+
+
+    #find calibration matrix
+    a, b, c, d = Cal_params_after_demo(noisy, GT_Snorm)
+    X_mat = Cal_params(noisy, GT_Snorm)
+    AoLP_deg = np.array(range(-65, 65, 10))
+    AoLP_val = np.mod(np.deg2rad(AoLP_deg), np.pi)
+    DoLP_val = np.array([0.05, 0.2, 0.5, 0.7, 0.9])
+
+    m_error_0 = np.zeros([AoLP_val.shape[0], DoLP_val.shape[0], 2])
+    m_error_1 = np.zeros([AoLP_val.shape[0], DoLP_val.shape[0], 2])
+
+    stat_n = 10
+    for stat in range(stat_n):
+    #simulate images for validation
+
+        error_0 = np.zeros([AoLP_val.shape[0],DoLP_val.shape[0],2])
+        error_1 = np.zeros([AoLP_val.shape[0],DoLP_val.shape[0],2])
+
+        for AoLP_n in  range(AoLP_val.shape[0]):
+            for DoLP_n in range(DoLP_val.shape[0]):
+                AoLP = AoLP_val[AoLP_n]
+                DoLP = DoLP_val[DoLP_n]
+                GT_Snorm = sim_GT_Snorm(np.array([AoLP]), DoLP_true=DoLP, haxis=100, vaxis=100)
+                noisy = sim_Noisy_images(GT_Snorm, error_by_type, av_n = 10)
+                error_0 [AoLP_n,DoLP_n,:]=  np.squeeze(np.array(mean_error(np.array([AoLP]), noisy,GT_Snorm, X_mat,
+                                                                             DoLP_true=DoLP)))
+                error_1 [AoLP_n,DoLP_n,:]= np.squeeze(np.array(mean_error(np.array([AoLP]), noisy,GT_Snorm, X_mat,
+                                                                            DoLP_true =DoLP, calibrate=True)))
+        m_error_0 = m_error_0 + error_0
+        m_error_1 = m_error_1 + error_1
+    #print("initial error", m_error_0)
+    #print("Calibrated error", m_error_1)
+
+    plt.figure(1)
+    a= []
+    for i in range(DoLP_val.shape[0]):
+       line=plt.plot(AoLP_deg, np.rad2deg(m_error_0[:,i,0])/stat_n)
+       a.append(['DoLP='+str(DoLP_val[i])])
+    plt.legend(a)
+    plt.show()
+    plt.figure(2)
+    a = []
+    for i in range(DoLP_val.shape[0]):
+        plt.plot(AoLP_deg, np.rad2deg(m_error_1[:,i,0])/stat_n)
+        a.append(['DoLP=' + str(DoLP_val[i])])
+    plt.legend(a)
+    plt.show()
+    a = []
+    plt.figure(3)
+    for i in range(AoLP_val.shape[0]):
+       plt.plot(DoLP_val, m_error_0[i,:,1]/stat_n)
+       a.append(['AoLP=' + str(AoLP_deg[i])])
+    plt.legend(a)
+    plt.show()
+    a = []
+    plt.figure(4)
+    for i in range(AoLP_val.shape[0]):
+        plt.plot(DoLP_val, m_error_1[i,:,1]/stat_n)
+        a.append(['AoLP=' + str(AoLP_deg[i])])
+    plt.legend(a)
+    plt.show()
+    a =[]
 
 if __name__ == "__main__":
     main()
