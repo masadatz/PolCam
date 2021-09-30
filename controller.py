@@ -77,10 +77,7 @@ class Imager:
             with ia.fetch_buffer() as buffer:
                 component = buffer.payload.components[0]
                 print(f"{run_indx} - {cur_time} - {cam_id} captured {component.data_format} image ")
-                if component.data_format == 'Mono12Packed':
-                    data = component.data #>> 4
-                else:
-                    data = component.data
+                data = component.data
                 _2d = data.reshape(component.height, component.width)
                 raw_image = copy.deepcopy(_2d)
                 # img = Image.fromarray(raw_image)
