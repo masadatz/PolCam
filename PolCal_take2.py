@@ -17,12 +17,14 @@ def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2448, vaxis =
     if DoLP_true.shape == ():
         DoLP_true = np.array([DoLP_true])
     n_im= AoLP_true.shape[0]
-    GT_Snorm = np.ones([3,n_im,vaxis,haxis])
+    GT_Snorm = np.ones([3,n_im+1,vaxis,haxis])
     q_true_val = DoLP_true*np.cos(2*AoLP_true)
     u_true_val = DoLP_true*np.sin(2*AoLP_true)
     for i in range(n_im):
         GT_Snorm[1,i,:,:] = q_true_val[i]
         GT_Snorm[2,i,:,:] = u_true_val[i]
+    GT_Snorm[1,n_im,:,:] = 0   ############
+    GT_Snorm[2, n_im, :, :] = 0   ##############
     return GT_Snorm
 
 #Simulate images, no demosaicing
@@ -38,6 +40,7 @@ def sim_Noisy_images(GT_Snorm, error_by_type, av_n=5):
     alpha_d[:,1::2, 0::2]=  135
     alpha = np.deg2rad(alpha_d)
     L = 0.5*t_guess*(GT_Snorm[0]+ GT_Snorm[1]*np.cos(2*alpha)+GT_Snorm[2]*np.sin(2*alpha))
+    #L = 0.5*t_guess*(GT_Snorm[0]+ GT_Snorm[1]*np.cos(2*alpha)+GT_Snorm[2]*np.sin(2*alpha))
     #av_n simulates the number of photos averaged for single Stokes vector image
     noise =  np.mean(np.random.normal(0.0,1/100,np.array([av_n,L.shape[0],L.shape[1],L.shape[2]])),axis=0)
     L_noise[:, 1::2, 1::2] = L[:, 1::2, 1::2] * (1 + error_by_type[0])
@@ -81,6 +84,7 @@ def mean_error( AoLP_true, images, GT_Snorm, X_mat, DoLP_true = 0.999,
         if calibrate:
             Stokes_cal = Cal(Stokes, X_mat)
             Stokes = Stokes_cal
+
         DoLP_with_noise= pa.cvtStokesToDoLP(Stokes)
         AoLP_with_noise = pa.cvtStokesToAoLP(Stokes)
         DoLP_Error[i] = np.sum(np.abs(DoLP_with_noise-DoLP_true))/(haxis*vaxis)
@@ -233,9 +237,9 @@ def main():
     error_std = 3
     error_by_type = np.random.normal(0.0, error_std, 4)
     noisy = sim_Noisy_images(GT_Snorm, error_by_type, av_n = 60)
-    #I = 0.25 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
-    #If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
-    #noisy = noisy/ If
+   # I = 0.5 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
+   # If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
+   # noisy = noisy/ If
 
 
     #find calibration matrix
@@ -248,7 +252,7 @@ def main():
     m_error_0 = np.zeros([AoLP_val.shape[0], DoLP_val.shape[0], 2])
     m_error_1 = np.zeros([AoLP_val.shape[0], DoLP_val.shape[0], 2])
 
-    stat_n = 10
+    stat_n = 1
     for stat in range(stat_n):
     #simulate images for validation
 
@@ -261,6 +265,9 @@ def main():
                 DoLP = DoLP_val[DoLP_n]
                 GT_Snorm = sim_GT_Snorm(np.array([AoLP]), DoLP_true=DoLP, haxis=100, vaxis=100)
                 noisy = sim_Noisy_images(GT_Snorm, error_by_type, av_n = 3)
+                #I = 0.5 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
+                #If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
+                #noisy = noisy / If
                 error_0 [AoLP_n,DoLP_n,:]=  np.squeeze(np.array(mean_error(np.array([AoLP]), noisy,GT_Snorm, X_mat,
                                                                              DoLP_true=DoLP)))
                 error_1 [AoLP_n,DoLP_n,:]= np.squeeze(np.array(mean_error(np.array([AoLP]), noisy,GT_Snorm, X_mat,
