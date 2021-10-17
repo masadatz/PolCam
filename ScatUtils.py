@@ -42,6 +42,14 @@ def Visibilty2OpticalDepth(VisRange_m, Length_m):
       OpticalDepth = -np.log(transmittance)        # OpticalDepth = -log(Trans) REf. : https://en.wikipedia.org/wiki/Optical_depth
       return OpticalDepth
 
+
+def OpticalDepth2Visibilty(max_OD_m, Length_m):
+       Sigma_1_over_m = max_OD_m / Length_m
+       VisRange_m = 3.912 / Sigma_1_over_m
+       # Ref. : https://en.wikipedia.org/wiki/Visibility x_\text{V}
+       # = \frac{3.912}{b_\text{ext}}
+       return VisRange_m
+
 def LWC2TotalVDist(LWC_gr_cm3, V_Distribition):
     WaterDensity_gr_cm3 = 0.99802  # gr/cm3
     TotalVDist = V_Distribition * (LWC_gr_cm3 / WaterDensity_gr_cm3)
@@ -130,23 +138,25 @@ def MieCalc(Wavelength, Radii):
 #----------- Start of test code ---------------
 print('Test Cloud droplets distribution functions')
 
-
+print_plots = False
 # try distribution functions conversions
 shape, scale = 3., 3.  # mean=4, std=2*sqrt(2)
 Radii = np.linspace(0.1, 40.0, num=200)
 N_Distribition = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
 N_Distribition = N_Distribition / np.sum(N_Distribition)
-plt.figure(1)
-plt.plot(Radii, N_Distribition )
+if (print_plots):
+    plt.figure(1)
+    plt.plot(Radii, N_Distribition )
 
 
 Radii, V_Distribition = N2V_distribution(Radii, N_Distribition)
-plt.plot(Radii, V_Distribition )
-plt.legend(['Number Dist.','Volume Dist.'])
-plt.xlabel('Radius [\mu  m]')
-plt.ylabel('Probability')
-plt.suptitle('Cloud droplets distribution')
-plt.show(block=False)
+if (print_plots):
+    plt.plot(Radii, V_Distribition )
+    plt.legend(['Number Dist.','Volume Dist.'])
+    plt.xlabel('Radius [\mu  m]')
+    plt.ylabel('Probability')
+    plt.suptitle('Cloud droplets distribution')
+    plt.show(block=False)
 
 
 Sigma_1_over_m = VisRange2Sigma(30) # 30 meter visibility
@@ -154,16 +164,19 @@ VisRange = Sigma2VisRange(Sigma_1_over_m) # we should receive back 30 meter visi
 
 LWC_gr_cm3 = 0.3*1E-6  # gr/m^3
 TotalVDist = LWC2TotalVDist(LWC_gr_cm3, V_Distribition)
-plt.figure(2)
-plt.plot(Radii, TotalVDist )
-plt.legend(['Number Dist.','Volume Dist.'])
-plt.xlabel('Radius [\mu  m]')
-plt.ylabel('Total Number')
-plt.show(block=False)
+if (print_plots):
+    plt.figure(2)
+    plt.plot(Radii, TotalVDist )
+    plt.legend(['Number Dist.','Volume Dist.'])
+    plt.xlabel('Radius [\mu  m]')
+    plt.ylabel('Total Number')
+    plt.show(block=False)
 
 # try visibility to optical depth function
-OD = Visibilty2OpticalDepth(30, 30)
-
+OD = Visibilty2OpticalDepth(3, 2.8)
+VisRange = OpticalDepth2Visibilty(2.7,2.8)
+print(OD)
+print(VisRange)
 # Run Mie Calculations
-Wavelength = 0.55 # microns
+Wavelength = 0.65 # microns
 MieCalc(Wavelength, Radii)

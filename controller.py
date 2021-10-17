@@ -14,7 +14,7 @@ from mpldatacursor import datacursor
 from harvesters.util.pfnc import mono_location_formats, \
     rgb_formats, bgr_formats, \
     rgba_formats, bgra_formats
-
+import os
 
 
 class Imager:
@@ -60,16 +60,25 @@ class Imager:
 
     def show_images(self):
         for img, _, _ in self.images:
-            img.show()
+#             img.show()
+            plt.imshow(img)
+            plt.show()
 
-    def save_images(self):
-        for img, img_time, cam_id in self.images:
-            img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.tiff')
+    def save_images(self, dir):
+        if dir is not None:
+            for img, img_time, cam_id in self.images:
+                img.save(f'./{dir}/{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.tiff')
+        else:
+            for img, img_time, cam_id in self.images:
+                img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.tiff')
 
-    def get_images(self, show_images, save_images, run_indx=0):
+    def get_images(self, show_images, save_images, run_indx=0, dir=None):
         images_with_times = []
         raw_images = []
         metadata = []
+        if dir is not None and not os.path.exists(dir):
+            os.mkdir(dir)
+                
         for cam_id, ia in zip(self.serial_ids, self.cams):
             cur_time = datetime.now()
 
@@ -77,27 +86,25 @@ class Imager:
             with ia.fetch_buffer() as buffer:
                 component = buffer.payload.components[0]
                 print(f"{run_indx} - {cur_time} - {cam_id} captured {component.data_format} image ")
-                if component.data_format == 'Mono12Packed':
-                    data = component.data >> 4
-                else:
-                    data = component.data
+                data = component.data
                 _2d = data.reshape(component.height, component.width)
                 raw_image = copy.deepcopy(_2d)
-                # img = Image.fromarray(raw_image)
-                # images_with_times.append((img, cur_time, cam_id))
+#                 img = Image.fromarray(raw_image)
+#                 images_with_times.append((img, cur_time, cam_id))
                 raw_images.append(raw_image)
                 metadata.append((run_indx, cur_time, cam_id))
         self.images = images_with_times
         if show_images:
             self.show_images()
         if save_images:
-            self.save_images()
+            self.save_images(dir)
 
         return raw_images, metadata
 
     def capture_sequence(self, num_frames, sleep_seconds1, sleep_seconds2):
         all_raw_images = []
         all_meta_data = []
+
         # arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
         time.sleep(0.5)
         for frame_num in range(num_frames):
@@ -105,12 +112,12 @@ class Imager:
             all_raw_images.append(raw_images)
             all_meta_data.extend(metadata)
             # arr[frame_num] = np.array(raw_images)
-            if ((frame_num+1) % 5) ==0:
+            if ((frame_num+1) % 3) ==0:
                 time.sleep(sleep_seconds1)
             else:
                 time.sleep(sleep_seconds2)
 
-        return all_raw_images, all_meta_data
+        return np.array(all_raw_images), all_meta_data
 
     def clear_all(self):
         for ia in self.cams:

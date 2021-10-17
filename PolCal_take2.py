@@ -280,7 +280,7 @@ def main():
     plt.figure(1)
     a= []
     for i in range(DoLP_val.shape[0]):
-       line=plt.plot(AoLP_deg, np.rad2deg(m_error_0[:,i,0])/stat_n)
+       plt.plot(AoLP_deg, np.rad2deg(m_error_0[:,i,0])/stat_n)
        a.append(['DoLP='+str(DoLP_val[i])])
     plt.legend(a)
     plt.show()
