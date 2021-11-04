@@ -40,10 +40,10 @@ class Imager:
     def update_params(self, ExposureTime=None, PixelFormat=None, AcquisitionFrameRate=None):
         for (ia,id) in zip(self.cams,self.serial_ids):
             if ExposureTime is not None:
-                if id =='192900073':
-                   ia.remote_device.node_map.ExposureTime.value = 2*ExposureTime
-                else:
-                    ia.remote_device.node_map.ExposureTime.value = ExposureTime
+                #if id =='192900073':
+                #   ia.remote_device.node_map.ExposureTime.value = 2*ExposureTime
+                #else:
+                ia.remote_device.node_map.ExposureTime.value = ExposureTime
                 # for example, change exposure time
             if PixelFormat is not None:
                 ia.remote_device.node_map.PixelFormat.value = PixelFormat  # .symbolics instead of .value for options

@@ -138,7 +138,7 @@ def MieCalc(Wavelength, Radii):
 #----------- Start of test code ---------------
 print('Test Cloud droplets distribution functions')
 
-print_plots = False
+print_plots = True
 # try distribution functions conversions
 shape, scale = 3., 3.  # mean=4, std=2*sqrt(2)
 Radii = np.linspace(0.1, 40.0, num=200)
