@@ -7,6 +7,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.special as sps
 
+#!pip install miepython
+try:
+    import miepython
+
+except ModuleNotFoundError:
+    print('miepython not installed. To install, uncomment and run the cell above.')
+    print('Once installation is successful, rerun this cell again.')
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
@@ -31,14 +38,23 @@ def Sigma2VisRange(Sigma_1_over_m):
     VisRange_m   = 3.912 / Sigma_1_over_m
     return VisRange_m
 
-def LWC2Visibility(C_ext, LWC_gr_cm3, Radii_micron, V_disrib):
-    print(f'Not active yet')
-    V_disrib_LWC = np.zeros(np.length(Radii_micron))
-    for i in range(len(Radii)):
-        volume = (4 * np.pi / 3) * (Radii_micron[i]/1000) ** 3
-        V_disrib_LWC[i] = V_disrib(i) * (LWC_gr_cm3 / volume)
+def LWC2TotalVDist(LWC_gr_cm3, V_Distribition):
+    WaterDensity_gr_cm3 = 0.99802  # gr/cm3
+    TotalVDist = V_Distribition * (LWC_gr_cm3 / WaterDensity_gr_cm3)
+    TotalVDist = TotalVDist
 
-        Sigma_1_over_m = C_ext*np.sum(V_disrib_LWC)*1E6
+    return TotalVDist
+
+def LWC2Visibility(C_ext, Cloud_LWC_gr_cm3, Radii_micron, V_disrib):
+
+    print(f'Not active yet')
+    WaterDensity_gr_cm3 = 0.99802  # gr/cm3
+    Norm_C_ext = np.zeros(np.length(Radii_micron))   # distribution normalised extinction cross section
+
+    for i in range(len(Radii)):
+        Norm_C_ext[i] = V_disrib[i] * C_ext[i]
+        Sigma_1_over_m = np.sum(Norm_C_ext) * (Cloud_LWC_gr_cm3 / WaterDensity_gr_cm3)*1E6
+
         VisRange_m = Sigma2VisRange(Sigma_1_over_m)
     return VisRange_m
 
@@ -65,6 +81,12 @@ plt.show()
 
 
 Sigma_1_over_m = VisRange2Sigma(30) # 30 meter visibility
-VisRange = VisRange2Sigma(Sigma_1_over_m) # we should receive back 30 meter visibility
+VisRange = Sigma2VisRange(Sigma_1_over_m) # we should receive back 30 meter visibility
 
-LWC_gr_cm3 = 500 * 1E-6
+LWC_gr_cm3 = 0.3*1E-6  # gr/m^3
+TotalVDist = LWC2TotalVDist(LWC_gr_cm3, V_Distribition)
+plt.plot(Radii, TotalVDist )
+plt.legend(['Number Dist.','Volume Dist.'])
+plt.xlabel('Radius [\mu  m]')
+plt.ylabel('Total Number')
+plt.show()
