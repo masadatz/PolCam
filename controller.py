@@ -14,6 +14,7 @@ from mpldatacursor import datacursor
 from harvesters.util.pfnc import mono_location_formats, \
     rgb_formats, bgr_formats, \
     rgba_formats, bgra_formats
+from scipy.ndimage.morphology import grey_erosion, binary_closing
 import os
 
 
@@ -64,17 +65,20 @@ class Imager:
 
     def show_images(self):
         for img, _, _ in self.images:
-#             img.show()
             plt.imshow(img)
             plt.show()
+#            img.show()
 
-    def save_images(self, dir):
-        if dir is not None:
-            for img, img_time, cam_id in self.images:
-                img.save(f'./{dir}/{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.tiff')
-        else:
-            for img, img_time, cam_id in self.images:
-                img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.tiff')
+    def save_images(self, dir=None):
+        if dir is not None and not os.path.exists(dir):
+            os.mkdir(dir)
+        for img, img_time, cam_id in self.images:
+            if dir is None:
+                np.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}', img)
+#                img.save(f'{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.jpeg')
+            else:
+#                img.save(f'./dir/{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}.jpeg')
+                np.save(f'./{dir}/{img_time.strftime("%Y_%m_%d_%H%M%S")}_{cam_id}', img)
 
     def get_images(self, show_images, save_images, run_indx=0, dir=None):
         images_with_times = []
@@ -82,7 +86,7 @@ class Imager:
         metadata = []
         if dir is not None and not os.path.exists(dir):
             os.mkdir(dir)
-                
+
         for cam_id, ia in zip(self.serial_ids, self.cams):
             cur_time = datetime.now()
 
@@ -105,10 +109,9 @@ class Imager:
 
         return raw_images, metadata
 
-    def capture_sequence(self, num_frames, sleep_seconds1, sleep_seconds2):
+    def capture_sequence(self, num_frames, sleep_seconds1, sleep_seconds2, frames_per_round=5):
         all_raw_images = []
         all_meta_data = []
-
         # arr = np.empty((num_frames, self.num_devices, 2048, 2448), dtype='uint8')
         time.sleep(0.5)
         for frame_num in range(num_frames):
@@ -121,7 +124,46 @@ class Imager:
             else:
                 time.sleep(sleep_seconds2)
 
-        return np.array(all_raw_images), all_meta_data
+        return all_raw_images, all_meta_data
+
+    def remove_frame(self, img, threshold, kernel_size, close_first = False):
+        mask = np.array(img)
+
+        mask[mask <= threshold] = 0
+        mask[mask > threshold] = 1
+        if close_first:
+            mask = binary_closing(mask)
+        return grey_erosion(mask, size=(kernel_size,kernel_size))*img
+
+    def capture_sequence_and_get_cover(self, num_frames, sleep_seconds1, sleep_seconds2, frames_per_round=5, threshold=2400, chckpt=None ):
+        if chckpt is None:
+            isimages = np.zeros([2048,2448])
+            images = np.zeros([2048,2448])
+        else:
+            isimages, images = chckpt
+
+        for frame_num in range(num_frames):
+            raw_images, metadata = self.get_images(show_images=False, save_images=False, run_indx=frame_num)
+            im = np.array(raw_images)
+            im = im[0]
+            im = self.remove_frame(im, threshold, kernel_size=35)
+            isim = np.copy(im)
+            isim[(np.nonzero(isim))]=1
+            images+=im
+            isimages+=isim
+            # arr[frame_num] = np.array(raw_images)
+            if ((frame_num+1) % frames_per_round) ==0:
+                time.sleep(sleep_seconds1)
+            else:
+                time.sleep(sleep_seconds2)
+
+        mean_image = np.zeros([2048,2448])
+        mean_image[(np.nonzero(isimages))]= images[(np.nonzero(isimages))]/isimages[(np.nonzero(isimages))]
+        return (isimages, images) , mean_image
+
+
+
+
 
     def clear_all(self):
         for ia in self.cams:
