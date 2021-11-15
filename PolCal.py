@@ -9,15 +9,16 @@ from scipy.linalg import inv, pinv2
 import scipy as sc
 import matplotlib.pyplot as plt
 from mpldatacursor import datacursor
+import copy
 
 #Simulate groud truth normalized Stokes Vector
-def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2448, vaxis = 2048):
+def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2048, vaxis = 2448):
     if AoLP_true.shape == ():
         AoLP_true = np.array([AoLP_true])
     if DoLP_true.shape == ():
         DoLP_true = np.array([DoLP_true])
     n_im= AoLP_true.shape[0]
-    GT_Snorm = np.ones([3,n_im,vaxis,haxis])
+    GT_Snorm = np.ones([3,n_im,haxis,vaxis])
     q_true_val = DoLP_true*np.cos(2*AoLP_true)
     u_true_val = DoLP_true*np.sin(2*AoLP_true)
     for i in range(n_im):
@@ -85,32 +86,23 @@ def mean_error( AoLP_true, images, GT_Snorm, X_mat, DoLP_true = 0.999,
         AoLP_with_noise = pa.cvtStokesToAoLP(Stokes)
         DoLP_Error[i] = np.sum(np.abs(DoLP_with_noise-DoLP_true))/(haxis*vaxis)
         AoLP_Error[i] = np.sum(np.abs(AoLP_with_noise-AoLP_true[i]))/(haxis*vaxis)
-        #AoLP_sum +=  haxis*vaxis*np.abs(AoLP_true[i])
+
         q_Error[i] = np.sum(np.abs(Stokes[...,1]-GT_Snorm[1,i,:,:]))
         u_Error[i] = np.sum(np.abs(Stokes[...,2]-GT_Snorm[2,i,:,:]))
-    #mean_DoLP_Error = np.sum(DoLP_Error)/(n_im*haxis*vaxis*DoLP_true)
-    #mean_AoLP_Error = np.sum(AoLP_Error)/AoLP_sum
-    #return [mean_DoLP_Error, mean_AoLP_Error]
-    #mean_q_error = np.sum(q_Error)/np.sum(np.abs(GT_Snorm[1]))
-    #mean_u_error = np.sum(u_Error) / np.sum(np.abs(GT_Snorm[2]))
+
     return [DoLP_Error, AoLP_Error]
 
 def Cal_params(images, GT_Snorm):
     #calibration
 
     n_im = images.shape[0]
-    vaxis = images.shape[1]
-    haxis = images.shape[2]
+    vaxis = images.shape[2]
+    haxis = images.shape[1]
 
     B_Mat = np.zeros([n_im,haxis*vaxis])
     A_Mat = np.zeros([n_im, 3])
     q_true = GT_Snorm[1,:,1,1]
     u_true = GT_Snorm[2,:,1,1]
-
-    #for real images we need normalization
-    #I = 0.5*(images[:,1::2, 1::2]+images[:,0::2, 1::2]+images[:,0::2, 0::2]+images[:,1::2, 0::2])
-    #images=  images/I
-
 
     for i in range(n_im):
         B_Mat[i] = images[i].flatten()
@@ -121,7 +113,7 @@ def Cal_params(images, GT_Snorm):
 
 
     x = np.linalg.lstsq(A_Mat, B_Mat,rcond = None)
-    X_mat = np.reshape(np.array(x[0]),[3,vaxis,haxis])# each column has the three parameters for a pixel
+    X_mat = np.reshape(np.array(x[0]),[3,haxis,vaxis])# each column has the three parameters for a pixel
     return X_mat
 
 def Cal(Stokes, X_mat):
@@ -142,8 +134,8 @@ def Cal(Stokes, X_mat):
     cd2 = c2-d2
     ab3 = a3-b3
     cd3 = c3-d3
-    for i in range(V):
-        for j in range(H):
+    for i in range(H):
+        for j in range(V):
             M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
             #Min = np.linalg.inv(M)
             Min = inv(M)
@@ -159,8 +151,8 @@ def Cal_params_after_demo(images, GT_Snorm):
     #calibration
 
     n_im = images.shape[0]
-    vaxis = images.shape[1]
-    haxis = images.shape[2]
+    vaxis = images.shape[2]
+    haxis = images.shape[1]
 
     B0_Mat = np.zeros([n_im, haxis * vaxis])
     B45_Mat = np.zeros([n_im, haxis * vaxis])
@@ -188,10 +180,10 @@ def Cal_params_after_demo(images, GT_Snorm):
     Xb = np.linalg.lstsq(A_Mat, B90_Mat, rcond = None)
     Xd = np.linalg.lstsq(A_Mat, B135_Mat, rcond= None)
 
-    a = np.reshape(np.array(Xa[0]), [3, vaxis, haxis])
-    b = np.reshape(np.array(Xb[0]), [3, vaxis, haxis])
-    c = np.reshape(np.array(Xc[0]), [3, vaxis, haxis])
-    d = np.reshape(np.array(Xd[0]), [3, vaxis, haxis])
+    a = np.reshape(np.array(Xa[0]), [3, haxis, vaxis])
+    b = np.reshape(np.array(Xb[0]), [3, haxis, vaxis])
+    c = np.reshape(np.array(Xc[0]), [3, haxis, vaxis])
+    d = np.reshape(np.array(Xd[0]), [3, haxis, vaxis])
     # each has the three parameters for a pixel
     return a,b,c,d
 
@@ -212,10 +204,11 @@ def Cal_after_demo(Stokes, a,b,c,d):
     cd2 = c2-d2
     ab3 = a3-b3
     cd3 = c3-d3
-    for i in range(V):
-        for j in range(H):
+    for i in range(H):
+        for j in range(V):
             M = np.array([[ab2[i,j], ab3[i,j]],
                           [cd2[i,j], cd3[i,j]]])
+            #Min = sc.linalg.pinv2(M)
             Min = inv(M)
             S =  np.array([  [ q_meas[i,j]-ab1[i,j] ],
                              [ u_meas[i,j]-cd1[i,j] ]  ])
@@ -224,7 +217,9 @@ def Cal_after_demo(Stokes, a,b,c,d):
             Stokes_cal[i,j,2]=Scal[1]
     return  Stokes_cal
 
-def main():
+def main2():
+
+    #for simulation
     #simulated images for finding calibration parameter matrices
 
     AoLP_deg  =np.array(range(-90, 90, 10))
@@ -248,7 +243,7 @@ def main():
     m_error_0 = np.zeros([AoLP_val.shape[0], DoLP_val.shape[0], 2])
     m_error_1 = np.zeros([AoLP_val.shape[0], DoLP_val.shape[0], 2])
 
-    stat_n = 10
+    stat_n = 1
     for stat in range(stat_n):
     #simulate images for validation
 
@@ -300,5 +295,87 @@ def main():
     plt.show()
     a =[]
 
+def main():
+
+    #simulated images for finding calibration parameter matrices
+
+    #r = (1150, 1070, 250, 250)
+    #AoLP_deg = np.array(range(0, 180, 10))
+    #dir = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\101934\patch\rad_fixed\fixed_polcal_patch_'
+
+    r = (50, 50, 2348, 1948)
+    AoLP_deg = np.array([0, 20, 30, 60,  70, 90, 110, 140, 170])
+    dir = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\101934\full_scan\fixed\fixed_polcal_'
+
+    raw = np.zeros([AoLP_deg.size,r[3],r[2]])
+    AoLP_true = np.mod(np.deg2rad(AoLP_deg), np.pi)
+    GT_Snorm = sim_GT_Snorm(AoLP_true,haxis = r[3], vaxis = r[2])
+
+    ID = ['101933', '101934', '101935', '101936']
+    cam = 1
+    i = 0
+    for AoP in AoLP_deg:
+        pattern = dir+str(np.abs(AoP))+'_' + ID[cam] + '.npy'
+        patch = np.load(pattern)
+        crop_patch = patch[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
+        crop_patch = crop_patch/np.max(crop_patch)
+        images_demosaiced = pa.demosaicing(crop_patch)
+        img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+        Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
+                                     np.deg2rad([0, 45, 90, 135]))
+        Intensity = copy.deepcopy(Stokes[...,0])
+        raw[i] = crop_patch/Intensity
+        i = i + 1
+
+    #find calibration matrix
+    #a, b, c, d = Cal_params_after_demo(raw, GT_Snorm)
+    X_mat = Cal_params(raw, GT_Snorm)
+
+
+    image = np.load(dir+'80_' + ID[cam] + '.npy')
+
+    images_demosaiced = pa.demosaicing(image)
+    img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+    img_0_c =img_0[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
+    img_45_c = img_45[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
+    img_90_c = img_90[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
+    img_135_c = img_135[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
+    # for real images we need normalization
+
+    Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0_c, img_45_c, img_90_c, img_135_c]), 0, -1),
+                                 np.deg2rad([0, 45, 90, 135]))
+    #Intensity = pa.cvtStokesToIntensity(Stokes)
+    Intensity = copy.deepcopy(Stokes[...,0])
+    Stokes[...,0] = Stokes[...,0] / Intensity
+    Stokes[..., 1] = Stokes[..., 1] / Intensity
+    Stokes[..., 2] = Stokes[..., 2] / Intensity
+
+    Stokes_cal = Cal(Stokes, X_mat)
+    #Stokes_cal = Cal_after_demo(Stokes, a, b, c, d)
+
+    DoLP_without = pa.cvtStokesToDoLP(Stokes)
+    AoLP_without = pa.cvtStokesToAoLP(Stokes)
+    DoLP_with  = pa.cvtStokesToDoLP(Stokes_cal)
+    AoLP_with = pa.cvtStokesToAoLP(Stokes_cal)
+
+
+    vmin = 0
+    vmax = 0.2
+    plt.imshow(abs(1-DoLP_without), cmap=plt.get_cmap('gray'), vmin=vmin, vmax=vmax)
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.clim(vmin, vmax)
+    print(np.mean(DoLP_without))
+    print(np.mean(np.rad2deg(AoLP_without)))
+    plt.show()
+    plt.imshow(abs(1-DoLP_with), cmap=plt.get_cmap('gray'), vmin=vmin, vmax=vmax)
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.clim(vmin, vmax)
+    plt.show()
+    print(np.mean(DoLP_with))
+    print(np.mean(np.rad2deg(AoLP_with)))
+
+
+
 if __name__ == "__main__":
     main()
+
