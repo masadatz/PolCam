@@ -6,6 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.special as sps
+from LoadSizeDistribution import *
 
 #!pip install miepython
 try:
@@ -130,19 +131,28 @@ def MieCalc(Wavelength, Radii):
 #----------- Start of test code ---------------
 print('Test Cloud droplets distribution functions')
 
+DEBUG = 0
+if DEBUG == 1:
 
-# try distribution functions conversions
-shape, scale = 3., 3.  # mean=4, std=2*sqrt(2)
-Radii = np.linspace(0.1, 40.0, num=200)
-N_Distribition = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
-N_Distribition = N_Distribition / np.sum(N_Distribition)
+    # try distribution functions conversions
+    shape, scale = 3., 3.  # mean=4, std=2*sqrt(2)
+    Radii = np.linspace(0.1, 40.0, num=200)
+    N_Distribition = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
+    N_Distribition = N_Distribition / np.sum(N_Distribition)
+
+else:
+    Radii, N_Distribition = LoadSizeDistribution()
+
 plt.figure(1)
-plt.plot(Radii, N_Distribition )
+plt.plot(Radii, N_Distribition)
+plt.title(" 'Green' cloud droplets Size distribution")
+plt.xlabel("Droplet Radius [microns]")
+plt.ylabel("Number")
 
 
 Radii, V_Distribition = N2V_distribution(Radii, N_Distribition)
 plt.plot(Radii, V_Distribition )
-plt.legend(['Number Dist.','Volume Dist.'])
+plt.legend(['Number Dist.', 'Volume Dist.'])
 plt.xlabel('Radius [\mu  m]')
 plt.ylabel('Probability')
 plt.suptitle('Cloud droplets distribution')
