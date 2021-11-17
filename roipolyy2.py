@@ -6,7 +6,7 @@ import logging
 
 
 # Create image
-img = cv2.imread('24_14_09_56_065849_101933.png')
+img = cv2.imread('26_09_44_03_456833_101935.png')
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 print(img)
 
@@ -28,10 +28,13 @@ plt.imshow(img, interpolation='nearest', cmap="Greys")
 plt.colorbar()
 roi1.display_roi()
 plt.title('draw second ROI')
+print('yayyy')
 plt.show(block=False)
+print('yooo')
 
 # Let user draw second ROI
 roi2 = RoiPoly(color='b', fig=fig)
+print('maaa')
 
  # Show the image with both ROIs and their mean values
 plt.imshow(img, interpolation='nearest', cmap="Greys")

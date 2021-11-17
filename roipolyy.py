@@ -5,62 +5,47 @@ import numpy as np
 import logging
 
 
-# Create image
-img = np.ones((100, 100)) * range(0, 100)
-print(img)
+def put_the_black_masks():
+    for roi in lis_rois:
+        mask = roi.get_mask(img[:, :, 0])
+        img[mask] = 0
 
-# Show the image
-fig = plt.figure()
+def display_rois(ind):
+    for i in range (ind):
+        lis_rois[i].display_roi()
+
+
+lis_rois = []
+
+img = cv2.imread('26_09_44_03_456833_101935.png')
+
+cont = True
+
+while cont:
+    fig = plt.figure()
+    plt.imshow(img, interpolation='nearest', cmap="Greys")
+    plt.colorbar()
+    display_rois(len(lis_rois))
+    plt.title("left click: line segment         right click or double click: close region")
+    plt.show(block = False) #maybe we don't need that line?
+    roi = RoiPoly(color='r', fig=fig)
+    lis_rois.append(roi)
+
+    cont = input("proceed? 'y' for Yes, anything else for No.")
+    print (cont)
+    cont = True if cont =='y' else False
+    print(cont)
+
+put_the_black_masks()
+
+#show finished pic
 plt.imshow(img, interpolation='nearest', cmap="Greys")
 plt.colorbar()
-plt.title("left click: line segment         right click or double click: close region")
-plt.show(block=False)
-
-# Let user draw first ROI
-roi1 = RoiPoly(color='r', fig=fig)
-#print(len(roi1))
+plt.title("finished?!")
 #fig.savefig('to.png')
-
-# Show the image with the first ROI
-fig = plt.figure()
-plt.imshow(img, interpolation='nearest', cmap="Greys")
-plt.colorbar()
-roi1.display_roi()
-plt.title('draw second ROI')
-plt.show(block=False)
-
-# # Let user draw second ROI
-roi2 = RoiPoly(color='b', fig=fig)
-
- # Show the image with both ROIs and their mean values
-plt.imshow(img, interpolation='nearest', cmap="Greys")
-plt.colorbar()
-for roi in [roi1, roi2]:
-    roi.display_roi()
-    roi.display_mean(img)
-plt.title('The two ROIs')
+cv2.imwrite('to.png', img=img)
 plt.show()
 
-# Show ROI masks
-plt.imshow(roi1.get_mask(img) + roi2.get_mask(img),
-           interpolation='nearest', cmap="Greys")
-plt.title('ROI masks of the two ROIs')
-plt.show()
 
-mask1 = roi1.get_mask(img)
-
-result = img[mask1]
-cv2.imshow('res', result)
-cv2.waitKey(0)
-
-
-# print('blup')
-# print(mask1)
-# mask2 = roi2.get_mask(img)
-# print('ma')
-# print(mask1)
-# plt.imshow( np.logical_not(mask1) + np.logical_not(mask2)+ img, interpolation='nearest', cmap="Greys") # show the binary signal mask
-
-#plt.show()
 
 
