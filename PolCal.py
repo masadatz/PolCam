@@ -217,6 +217,15 @@ def Cal_after_demo(Stokes, a,b,c,d):
             Stokes_cal[i,j,2]=Scal[1]
     return  Stokes_cal
 
+def norm_stokes(Stokes):
+    Stokes_norm = copy.deepcopy(Stokes)
+    Intensity = copy.deepcopy(Stokes[...,0])
+    Stokes_norm[...,0] = Stokes_norm[...,0] / Intensity
+    Stokes_norm[..., 1] = Stokes_norm[..., 1] / Intensity
+    Stokes_norm[..., 2] = Stokes_norm[..., 2] / Intensity
+    return Stokes_norm
+
+
 def main2():
 
     #for simulation
@@ -297,15 +306,12 @@ def main2():
 
 def main():
 
-    #simulated images for finding calibration parameter matrices
-
-    #r = (1150, 1070, 250, 250)
-    #AoLP_deg = np.array(range(0, 180, 10))
-    #dir = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\101934\patch\rad_fixed\fixed_polcal_patch_'
+    #Images for finding calibration parameter matrices
 
     r = (50, 50, 2348, 1948)
     AoLP_deg = np.array([0, 20, 30, 60,  70, 90, 110, 140, 170])
-    dir = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\101934\full_scan\fixed\fixed_polcal_'
+    dir1 = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\\'
+
 
     raw = np.zeros([AoLP_deg.size,r[3],r[2]])
     AoLP_true = np.mod(np.deg2rad(AoLP_deg), np.pi)
@@ -313,6 +319,8 @@ def main():
 
     ID = ['101933', '101934', '101935', '101936']
     cam = 1
+    dir = dir1+ID[cam]+r'\full_scan\fixed\fixed_polcal_'
+
     i = 0
     for AoP in AoLP_deg:
         pattern = dir+str(np.abs(AoP))+'_' + ID[cam] + '.npy'
@@ -344,17 +352,13 @@ def main():
 
     Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0_c, img_45_c, img_90_c, img_135_c]), 0, -1),
                                  np.deg2rad([0, 45, 90, 135]))
-    #Intensity = pa.cvtStokesToIntensity(Stokes)
-    Intensity = copy.deepcopy(Stokes[...,0])
-    Stokes[...,0] = Stokes[...,0] / Intensity
-    Stokes[..., 1] = Stokes[..., 1] / Intensity
-    Stokes[..., 2] = Stokes[..., 2] / Intensity
+    Stokes_norm = norm_stokes(Stokes)
 
-    Stokes_cal = Cal(Stokes, X_mat)
+    Stokes_cal = Cal(Stokes_norm, X_mat)
     #Stokes_cal = Cal_after_demo(Stokes, a, b, c, d)
 
-    DoLP_without = pa.cvtStokesToDoLP(Stokes)
-    AoLP_without = pa.cvtStokesToAoLP(Stokes)
+    DoLP_without = pa.cvtStokesToDoLP(Stokes_norm)
+    AoLP_without = pa.cvtStokesToAoLP(Stokes_norm)
     DoLP_with  = pa.cvtStokesToDoLP(Stokes_cal)
     AoLP_with = pa.cvtStokesToAoLP(Stokes_cal)
 
@@ -374,7 +378,7 @@ def main():
     print(np.mean(DoLP_with))
     print(np.mean(np.rad2deg(AoLP_with)))
 
-
+    np.save(dir1 + '\polcal_matrix_' + ID[cam],X_mat)
 
 if __name__ == "__main__":
     main()
