@@ -21,7 +21,7 @@ def display_rois(ind):
 
 
 lis_rois = []
-name_of_file = '24_14_09_56_075807_101935.png'
+name_of_file = '26_13_04_32_394234_192900073.png'
 img = cv2.imread(name_of_file)
 
 cont = True
