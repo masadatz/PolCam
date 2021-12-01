@@ -308,8 +308,9 @@ def main():
 
     #Images for finding calibration parameter matrices
 
-    r = (50, 50, 2348, 1948)
-    AoLP_deg = np.array([0, 20, 30, 60,  70, 90, 110, 140, 170])
+    #r = (50, 50, 2348, 1948)
+    r = (0, 0, 2448, 2048)
+    AoLP_deg = np.arange(0,180,20)
     dir1 = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\\'
 
 
@@ -317,8 +318,8 @@ def main():
     AoLP_true = np.mod(np.deg2rad(AoLP_deg), np.pi)
     GT_Snorm = sim_GT_Snorm(AoLP_true,haxis = r[3], vaxis = r[2])
 
-    ID = ['101933', '101934', '101935', '101936']
-    cam = 1
+    ID = ['101933', '101934', '101935', '101936','192900073']
+    cam = 3
     dir = dir1+ID[cam]+r'\full_scan\fixed\fixed_polcal_'
 
     i = 0
@@ -339,8 +340,8 @@ def main():
     #a, b, c, d = Cal_params_after_demo(raw, GT_Snorm)
     X_mat = Cal_params(raw, GT_Snorm)
 
-
-    image = np.load(dir+'80_' + ID[cam] + '.npy')
+    val = 90
+    image = np.load(dir+str(val)+'_' + ID[cam] + '.npy')
 
     images_demosaiced = pa.demosaicing(image)
     img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
@@ -378,7 +379,18 @@ def main():
     print(np.mean(DoLP_with))
     print(np.mean(np.rad2deg(AoLP_with)))
 
-    np.save(dir1 + '\polcal_matrix_' + ID[cam],X_mat)
+
+    plt.imshow(np.rad2deg(AoLP_without)-val)
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    print(np.mean(DoLP_without))
+    print(np.mean(np.rad2deg(AoLP_without)))
+    plt.show()
+    plt.imshow(np.rad2deg(AoLP_with)-val)
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    plt.show()
+    #np.save(dir1 + '\polcal_matrix_' + ID[cam],X_mat)
 
 if __name__ == "__main__":
     main()
