@@ -5,11 +5,11 @@ import cv2
 import polanalyser as pa
 from PIL import Image
 import numpy as np
-from scipy.linalg import inv, pinv2
-import scipy as sc
+from scipy.linalg import inv
 import matplotlib.pyplot as plt
 from mpldatacursor import datacursor
 import copy
+import RadCal
 
 #Simulate groud truth normalized Stokes Vector
 def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2048, vaxis = 2448):
@@ -225,6 +225,10 @@ def norm_stokes(Stokes):
     Stokes_norm[..., 2] = Stokes_norm[..., 2] / Intensity
     return Stokes_norm
 
+def load_xmat(cam_id):
+    PolCal_dir = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/calibration params/polcal_params/"
+    X_mat = np.load(PolCal_dir + 'polcal_matrix_' + cam_id + '.npy')
+    return X_mat
 
 def main2():
 
@@ -304,54 +308,52 @@ def main2():
     plt.show()
     a =[]
 
+
+
 def main():
 
     #Images for finding calibration parameter matrices
 
-    #r = (50, 50, 2348, 1948)
-    r = (0, 0, 2448, 2048)
-    AoLP_deg = np.arange(0,180,20)
+    AoLP_deg = np.array([20, 30, 40, 60, 70, 80, 90, 110, 140, 170]) #np.arange(0,180,20)
+    val = 0
+    v = 2448
+    h = 2048
     dir1 = r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\\'
 
-
-    raw = np.zeros([AoLP_deg.size,r[3],r[2]])
+    raw = np.zeros([AoLP_deg.size, h , v])
     AoLP_true = np.mod(np.deg2rad(AoLP_deg), np.pi)
-    GT_Snorm = sim_GT_Snorm(AoLP_true,haxis = r[3], vaxis = r[2])
+
+    GT_Snorm = sim_GT_Snorm(AoLP_true,haxis = h, vaxis = v)
 
     ID = ['101933', '101934', '101935', '101936','192900073']
-    cam = 3
-    dir = dir1+ID[cam]+r'\full_scan\fixed\fixed_polcal_'
+    cam = 1
+    cam_id = ID[cam]
+    dir = dir1+cam_id+r'\full_scan\fixed\fixed_polcal_'
 
     i = 0
     for AoP in AoLP_deg:
-        pattern = dir+str(np.abs(AoP))+'_' + ID[cam] + '.npy'
-        patch = np.load(pattern)
-        crop_patch = patch[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
-        crop_patch = crop_patch/np.max(crop_patch)
-        images_demosaiced = pa.demosaicing(crop_patch)
+        pattern = dir+str(np.abs(AoP))+'_' + cam_id + '.npy'
+        image = np.load(pattern)
+        #crop_patch = crop_patch/np.max(crop_patch)
+        images_demosaiced = pa.demosaicing(image)
         img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
         Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
                                      np.deg2rad([0, 45, 90, 135]))
         Intensity = copy.deepcopy(Stokes[...,0])
-        raw[i] = crop_patch/Intensity
+        raw[i] = image/Intensity
         i = i + 1
 
     #find calibration matrix
     #a, b, c, d = Cal_params_after_demo(raw, GT_Snorm)
     X_mat = Cal_params(raw, GT_Snorm)
 
-    val = 90
-    image = np.load(dir+str(val)+'_' + ID[cam] + '.npy')
+    image = np.load(dir+str(val)+'_' + cam_id + '.npy')
 
     images_demosaiced = pa.demosaicing(image)
     img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
-    img_0_c =img_0[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
-    img_45_c = img_45[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
-    img_90_c = img_90[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
-    img_135_c = img_135[int(r[1]): int(r[1] + r[3]), int(r[0]): int(r[0] + r[2])]
     # for real images we need normalization
 
-    Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0_c, img_45_c, img_90_c, img_135_c]), 0, -1),
+    Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
                                  np.deg2rad([0, 45, 90, 135]))
     Stokes_norm = norm_stokes(Stokes)
 
@@ -380,18 +382,76 @@ def main():
     print(np.mean(np.rad2deg(AoLP_with)))
 
 
-    plt.imshow(np.rad2deg(AoLP_without)-val)
+    plt.imshow(abs(np.rad2deg(AoLP_without)-val))
     plt.colorbar()
     #plt.clim(vmin, vmax)
+    plt.show()
+    plt.imshow(abs(np.rad2deg(AoLP_with)-val))
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    plt.show()
+    np.save(dir1 + '\polcal_matrix_' + cam_id,X_mat)
+
+def main3():
+
+
+    dir1 = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/"
+
+    ID = ['101933', '101934', '101935', '101936', '192900073']
+    cam = 1
+    cam_id = ID[cam]
+    dir = dir1 + cam_id + f"/full_scan/fixed/fixed_polcal_"
+    dir2 = f"/calibration params/polcal_params/"
+
+    val = 80
+    image = np.load(dir+str(val)+'_' + cam_id + '.npy')
+    #image_dir =r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\Data_From_Experiment\A\A32_45000\8\25_15_37_34_509735_101934.npy'
+    #image = np.load(image_dir)
+    fixed_image = RadCal.correct_rad(image, cam_id)
+    images_demosaiced = pa.demosaicing(fixed_image)
+    img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+    X_mat = np.load(dir1 + dir2+ 'polcal_matrix_' + cam_id+ '.npy')
+
+    Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
+                                 np.deg2rad([0, 45, 90, 135]))
+    Stokes_norm = norm_stokes(Stokes)
+
+    Stokes_cal = Cal(Stokes_norm, X_mat)
+    # Stokes_cal = Cal_after_demo(Stokes, a, b, c, d)
+
+    DoLP_without = pa.cvtStokesToDoLP(Stokes_norm)
+    AoLP_without = pa.cvtStokesToAoLP(Stokes_norm)
+    DoLP_with = pa.cvtStokesToDoLP(Stokes_cal)
+    AoLP_with = pa.cvtStokesToAoLP(Stokes_cal)
+
+    vmin = 0
+    vmax = 1
+    plt.imshow(abs(DoLP_without), cmap=plt.get_cmap('gray'), vmin=vmin, vmax=vmax)
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.clim(vmin, vmax)
     print(np.mean(DoLP_without))
     print(np.mean(np.rad2deg(AoLP_without)))
     plt.show()
-    plt.imshow(np.rad2deg(AoLP_with)-val)
-    plt.colorbar()
-    #plt.clim(vmin, vmax)
+    plt.imshow(abs(DoLP_with), cmap=plt.get_cmap('gray'), vmin=vmin, vmax=vmax)
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.clim(vmin, vmax)
     plt.show()
-    #np.save(dir1 + '\polcal_matrix_' + ID[cam],X_mat)
+    print(np.mean(DoLP_with))
+    print(np.mean(np.rad2deg(AoLP_with)))
 
+
+    vmin2= 0
+    vmax2 =5
+    plt.imshow(abs(np.rad2deg(AoLP_without)-val), cmap=plt.get_cmap('gray'), vmin=vmin2, vmax=vmax2)
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.clim(vmin2, vmax2)
+
+    plt.show()
+    plt.imshow(abs(np.rad2deg(AoLP_with)-val), cmap=plt.get_cmap('gray'), vmin=vmin2, vmax=vmax2)
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.clim(vmin2, vmax2)
+    plt.show()
 if __name__ == "__main__":
-    main()
+    main3()
+
 
