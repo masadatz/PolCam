@@ -135,18 +135,20 @@ class Imager:
             mask = binary_closing(mask)
         return grey_erosion(mask, size=(kernel_size,kernel_size))*img
 
-    def capture_sequence_and_get_cover(self, num_frames, sleep_seconds1, sleep_seconds2, frames_per_round=5, threshold=2400, chckpt=None ):
+    def capture_sequence_and_get_cover(self, num_frames, sleep_seconds1, sleep_seconds2, frames_per_round=5, threshold=700, close_first= True , chckpt=None ):
+
         if chckpt is None:
             isimages = np.zeros([2048,2448])
             images = np.zeros([2048,2448])
         else:
             isimages, images = chckpt
+           
 
         for frame_num in range(num_frames):
             raw_images, metadata = self.get_images(show_images=False, save_images=False, run_indx=frame_num)
             im = np.array(raw_images)
             im = im[0]
-            im = self.remove_frame(im, threshold, kernel_size=35)
+            im = self.remove_frame(im, threshold, kernel_size=35, close_first = close_first )
             isim = np.copy(im)
             isim[(np.nonzero(isim))]=1
             images+=im
@@ -156,7 +158,7 @@ class Imager:
                 time.sleep(sleep_seconds1)
             else:
                 time.sleep(sleep_seconds2)
-
+        
         mean_image = np.zeros([2048,2448])
         mean_image[(np.nonzero(isimages))]= images[(np.nonzero(isimages))]/isimages[(np.nonzero(isimages))]
         return (isimages, images) , mean_image
