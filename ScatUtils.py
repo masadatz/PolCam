@@ -155,13 +155,20 @@ def MieCalc(Wavelength, Radii, Dist):
 
     return qext, qsca, qback, theta, s1 , s2
 
+
+def calc_reff(radii, N_dist):
+    Sum1 = np.sum(radii**3*N_dist)
+    Sum2 = np.sum(radii**2*N_dist)
+    reff = Sum1/Sum2
+    return reff
+
 #----------- Start of test code ---------------
 print('Test Cloud droplets distribution functions')
 
 type_num = 1
 type = ['mist', 'green clouds']
 filename = [r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\mesibot.txt',
-            r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\greenclouds.txt']
+            r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\Data_From_Experiment\distributions\greenclouds.txt']
 
 DEBUG = 0
 if DEBUG == 1:
@@ -181,7 +188,7 @@ plt.xlabel("Droplet Radius [microns]")
 plt.ylabel("Number")
 print_plots = True
 # try distribution functions conversions
-shape, scale = 15., 0.1 # mean=4, std=2*sqrt(2)
+shape, scale = 35., 0.1 # mean=4, std=2*sqrt(2)
 #Radii = np.linspace(0.1, 40.0, num=200)
 N_Distribition_gamma = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
 N_Distribition_gamma = N_Distribition_gamma / np.sum(N_Distribition_gamma)
@@ -228,3 +235,6 @@ print(VisRange)
 # Run Mie Calculations
 Wavelength = 0.55 # microns
 MieCalc(Wavelength, Radii, V_Distribition_gamma)
+
+reff = calc_reff(Radii, N_Distribition)
+print(reff)

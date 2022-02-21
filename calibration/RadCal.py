@@ -127,17 +127,19 @@ def fill_in_by_model(cover,covers,models):
     return cover2
 
 def ff_correct(image, cam_id, exposure):
-    dir_ff = f"/calibration/calibration params/radcal_params/"
-    dir_dark = f"/calibration/calibration params/Dark_current/"
-    dark_cover = np.load(dir_dark+f"dark_{cam_id}_{exposure}.npy")
+    dir_ff = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/calibration params/radcal_params/"
+    dir_dark = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/calibration params/DarkNoise/"
+    dark_cover = np.load(dir_dark+f"camera_{cam_id}\DarkNoise_CAM{cam_id}_{exposure}ET.npy")
+
     with open(dir_ff+f"{cam_id}_calibration_params.json", "rb") as file:
         param_dict = json.load(file)
         cover_fix = np.array(param_dict["fixer image"])# needs to be a function by exposure time
-        fixed_image = (image- dark_cover) * cover_fix #
+        fixed_image = np.clip(image-dark_cover,0,4096) * cover_fix #
     return fixed_image
 
 def gray2rad(image,cam_id,exposure,bit):
-    dir_ff = f"/calibration/calibration params/radcal_params/"
+    dir_ff = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/calibration params/radcal_params/"
+
     with open(dir_ff + f"{cam_id}_calibration_params.json", "rb") as file:
         param_dict = json.load(file)
         C = np.array(param_dict["C"])
@@ -151,7 +153,7 @@ def main():
     cam = 1
     cam_id = ID[cam]
     exposure = 3000
-    dir = r'/calibration/101934/full_scan/polcal_40_101934.npy'  #for example
+    dir = r'C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/101934/full_scan/polcal_40_101934.npy'  #for example
     image0 = np.load(dir)
     image1 = ff_correct(image0,cam_id,exposure)
     plt.imshow(image0, cmap=plt.get_cmap('gray'), vmin=0, vmax=4096)
