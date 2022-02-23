@@ -5,26 +5,25 @@ import cv2
 import polanalyser as pa
 from PIL import Image
 import numpy as np
-from scipy.linalg import inv, pinv2
-import scipy as sc
+from scipy.linalg import inv
 import matplotlib.pyplot as plt
 from mpldatacursor import datacursor
+import copy
+import RadCal
 
 #Simulate groud truth normalized Stokes Vector
-def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2448, vaxis = 2048):
+def sim_GT_Snorm(AoLP_true, DoLP_true = np.array([0.999]), haxis = 2048, vaxis = 2448):
     if AoLP_true.shape == ():
         AoLP_true = np.array([AoLP_true])
     if DoLP_true.shape == ():
         DoLP_true = np.array([DoLP_true])
     n_im= AoLP_true.shape[0]
-    GT_Snorm = np.ones([3,n_im+1,vaxis,haxis])
+    GT_Snorm = np.ones([3,n_im,haxis,vaxis])
     q_true_val = DoLP_true*np.cos(2*AoLP_true)
     u_true_val = DoLP_true*np.sin(2*AoLP_true)
     for i in range(n_im):
         GT_Snorm[1,i,:,:] = q_true_val[i]
         GT_Snorm[2,i,:,:] = u_true_val[i]
-    GT_Snorm[1,n_im,:,:] = 0   ############
-    GT_Snorm[2, n_im, :, :] = 0   ##############
     return GT_Snorm
 
 #Simulate images, no demosaicing
@@ -40,7 +39,6 @@ def sim_Noisy_images(GT_Snorm, error_by_type, av_n=5):
     alpha_d[:,1::2, 0::2]=  135
     alpha = np.deg2rad(alpha_d)
     L = 0.5*t_guess*(GT_Snorm[0]+ GT_Snorm[1]*np.cos(2*alpha)+GT_Snorm[2]*np.sin(2*alpha))
-    #L = 0.5*t_guess*(GT_Snorm[0]+ GT_Snorm[1]*np.cos(2*alpha)+GT_Snorm[2]*np.sin(2*alpha))
     #av_n simulates the number of photos averaged for single Stokes vector image
     noise =  np.mean(np.random.normal(0.0,1/100,np.array([av_n,L.shape[0],L.shape[1],L.shape[2]])),axis=0)
     L_noise[:, 1::2, 1::2] = L[:, 1::2, 1::2] * (1 + error_by_type[0])
@@ -84,48 +82,38 @@ def mean_error( AoLP_true, images, GT_Snorm, X_mat, DoLP_true = 0.999,
         if calibrate:
             Stokes_cal = Cal(Stokes, X_mat)
             Stokes = Stokes_cal
-
         DoLP_with_noise= pa.cvtStokesToDoLP(Stokes)
         AoLP_with_noise = pa.cvtStokesToAoLP(Stokes)
         DoLP_Error[i] = np.sum(np.abs(DoLP_with_noise-DoLP_true))/(haxis*vaxis)
         AoLP_Error[i] = np.sum(np.abs(AoLP_with_noise-AoLP_true[i]))/(haxis*vaxis)
-        #AoLP_sum +=  haxis*vaxis*np.abs(AoLP_true[i])
+
         q_Error[i] = np.sum(np.abs(Stokes[...,1]-GT_Snorm[1,i,:,:]))
         u_Error[i] = np.sum(np.abs(Stokes[...,2]-GT_Snorm[2,i,:,:]))
-    #mean_DoLP_Error = np.sum(DoLP_Error)/(n_im*haxis*vaxis*DoLP_true)
-    #mean_AoLP_Error = np.sum(AoLP_Error)/AoLP_sum
-    #return [mean_DoLP_Error, mean_AoLP_Error]
-    #mean_q_error = np.sum(q_Error)/np.sum(np.abs(GT_Snorm[1]))
-    #mean_u_error = np.sum(u_Error) / np.sum(np.abs(GT_Snorm[2]))
+
     return [DoLP_Error, AoLP_Error]
 
 def Cal_params(images, GT_Snorm):
     #calibration
 
     n_im = images.shape[0]
-    vaxis = images.shape[1]
-    haxis = images.shape[2]
+    vaxis = images.shape[2]
+    haxis = images.shape[1]
 
     B_Mat = np.zeros([n_im,haxis*vaxis])
     A_Mat = np.zeros([n_im, 3])
     q_true = GT_Snorm[1,:,1,1]
     u_true = GT_Snorm[2,:,1,1]
 
-    #for real images we need normalization
-    #I = 0.5*(images[:,1::2, 1::2]+images[:,0::2, 1::2]+images[:,0::2, 0::2]+images[:,1::2, 0::2])
-    #images=  images/I
-
-
     for i in range(n_im):
         B_Mat[i] = images[i].flatten()
 
-    A_Mat[:,0]=1
+    A_Mat[:,0] = 1
     A_Mat[:,1] = np.transpose(q_true)
     A_Mat[:,2] = np.transpose(u_true)
 
 
     x = np.linalg.lstsq(A_Mat, B_Mat,rcond = None)
-    X_mat = np.reshape(np.array(x[0]),[3,vaxis,haxis])# each column has the three parameters for a pixel
+    X_mat = np.reshape(np.array(x[0]),[3,haxis,vaxis])# each column has the three parameters for a pixel
     return X_mat
 
 def Cal(Stokes, X_mat):
@@ -146,8 +134,8 @@ def Cal(Stokes, X_mat):
     cd2 = c2-d2
     ab3 = a3-b3
     cd3 = c3-d3
-    for i in range(V):
-        for j in range(H):
+    for i in range(H):
+        for j in range(V):
             M = np.array([[ab2[i,j], ab3[i,j]],[cd2[i,j], cd3[i,j]]])
             #Min = np.linalg.inv(M)
             Min = inv(M)
@@ -163,8 +151,8 @@ def Cal_params_after_demo(images, GT_Snorm):
     #calibration
 
     n_im = images.shape[0]
-    vaxis = images.shape[1]
-    haxis = images.shape[2]
+    vaxis = images.shape[2]
+    haxis = images.shape[1]
 
     B0_Mat = np.zeros([n_im, haxis * vaxis])
     B45_Mat = np.zeros([n_im, haxis * vaxis])
@@ -192,10 +180,10 @@ def Cal_params_after_demo(images, GT_Snorm):
     Xb = np.linalg.lstsq(A_Mat, B90_Mat, rcond = None)
     Xd = np.linalg.lstsq(A_Mat, B135_Mat, rcond= None)
 
-    a = np.reshape(np.array(Xa[0]), [3, vaxis, haxis])
-    b = np.reshape(np.array(Xb[0]), [3, vaxis, haxis])
-    c = np.reshape(np.array(Xc[0]), [3, vaxis, haxis])
-    d = np.reshape(np.array(Xd[0]), [3, vaxis, haxis])
+    a = np.reshape(np.array(Xa[0]), [3, haxis, vaxis])
+    b = np.reshape(np.array(Xb[0]), [3, haxis, vaxis])
+    c = np.reshape(np.array(Xc[0]), [3, haxis, vaxis])
+    d = np.reshape(np.array(Xd[0]), [3, haxis, vaxis])
     # each has the three parameters for a pixel
     return a,b,c,d
 
@@ -216,10 +204,11 @@ def Cal_after_demo(Stokes, a,b,c,d):
     cd2 = c2-d2
     ab3 = a3-b3
     cd3 = c3-d3
-    for i in range(V):
-        for j in range(H):
+    for i in range(H):
+        for j in range(V):
             M = np.array([[ab2[i,j], ab3[i,j]],
                           [cd2[i,j], cd3[i,j]]])
+            #Min = sc.linalg.pinv2(M)
             Min = inv(M)
             S =  np.array([  [ q_meas[i,j]-ab1[i,j] ],
                              [ u_meas[i,j]-cd1[i,j] ]  ])
@@ -228,7 +217,22 @@ def Cal_after_demo(Stokes, a,b,c,d):
             Stokes_cal[i,j,2]=Scal[1]
     return  Stokes_cal
 
-def main():
+def norm_stokes(Stokes):
+    Stokes_norm = copy.deepcopy(Stokes)
+    Intensity = copy.deepcopy(Stokes[...,0])
+    Stokes_norm[...,0] = Stokes_norm[...,0] / Intensity
+    Stokes_norm[..., 1] = Stokes_norm[..., 1] / Intensity
+    Stokes_norm[..., 2] = Stokes_norm[..., 2] / Intensity
+    return Stokes_norm,Intensity
+
+def load_xmat(cam_id):
+    PolCal_dir = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/calibration params/polcal_params/"
+    X_mat = np.load(PolCal_dir + 'polcal_matrix_' + cam_id + '.npy')
+    return X_mat
+
+def main2():
+
+    #for simulation
     #simulated images for finding calibration parameter matrices
 
     AoLP_deg  =np.array(range(-90, 90, 10))
@@ -237,9 +241,9 @@ def main():
     error_std = 3
     error_by_type = np.random.normal(0.0, error_std, 4)
     noisy = sim_Noisy_images(GT_Snorm, error_by_type, av_n = 60)
-   # I = 0.5 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
-   # If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
-   # noisy = noisy/ If
+    #I = 0.25 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
+    #If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
+    #noisy = noisy/ If
 
 
     #find calibration matrix
@@ -265,9 +269,6 @@ def main():
                 DoLP = DoLP_val[DoLP_n]
                 GT_Snorm = sim_GT_Snorm(np.array([AoLP]), DoLP_true=DoLP, haxis=100, vaxis=100)
                 noisy = sim_Noisy_images(GT_Snorm, error_by_type, av_n = 3)
-                #I = 0.5 * (noisy[:, 1::2, 1::2] + noisy[:, 0::2, 1::2] + noisy[:, 0::2, 0::2] + noisy[:, 1::2, 0::2])
-                #If = np.repeat(np.repeat(I, repeats=2, axis=1), repeats=2, axis=2)
-                #noisy = noisy / If
                 error_0 [AoLP_n,DoLP_n,:]=  np.squeeze(np.array(mean_error(np.array([AoLP]), noisy,GT_Snorm, X_mat,
                                                                              DoLP_true=DoLP)))
                 error_1 [AoLP_n,DoLP_n,:]= np.squeeze(np.array(mean_error(np.array([AoLP]), noisy,GT_Snorm, X_mat,
@@ -280,7 +281,7 @@ def main():
     plt.figure(1)
     a= []
     for i in range(DoLP_val.shape[0]):
-       plt.plot(AoLP_deg, np.rad2deg(m_error_0[:,i,0])/stat_n)
+       line=plt.plot(AoLP_deg, np.rad2deg(m_error_0[:,i,0])/stat_n)
        a.append(['DoLP='+str(DoLP_val[i])])
     plt.legend(a)
     plt.show()
@@ -307,5 +308,169 @@ def main():
     plt.show()
     a =[]
 
+
+
+def main():
+
+    #for finding calibration parameter matrices and validation
+
+    AoLP_deg = np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 100, 110, 120, 130, 140, 150, 160, 170]) #np.arange(0,180,20)
+    val = 90
+    v = 2448
+    h = 2048
+    clip = 48
+    dir1 = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/"
+
+    raw = np.zeros([AoLP_deg.size, h-2*clip , v-2*clip])
+    AoLP_true = np.mod(np.deg2rad(AoLP_deg), np.pi)
+
+    GT_Snorm = sim_GT_Snorm(AoLP_true,haxis = h-2*clip, vaxis = v-2*clip)
+
+    ID = ['101933', '101934', '101935', '101936','192900073']
+    cam = 4
+    expo = 9000
+    cam_id = ID[cam]
+    dir = dir1+cam_id+f"/full_scan/CalMatrix_2000cnts_{expo}ET_POL"
+
+    i = 0
+    for AoP in AoLP_deg:
+        pattern = dir+str(np.abs(AoP))+'_CAM' + cam_id + '.npy'
+        image_no_ff = np.load(pattern)
+        image_full = RadCal.ff_correct(image_no_ff,cam_id,expo)
+        image =image_full[clip:h-clip,clip:v-clip]
+        images_demosaiced = pa.demosaicing(image)
+        img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+        Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
+                                     np.deg2rad([0, 45, 90, 135]))
+        Intensity = copy.deepcopy(Stokes[...,0])
+        raw[i] = image/Intensity
+        i = i + 1
+
+    #find calibration matrix
+    #a, b, c, d = Cal_params_after_demo(raw, GT_Snorm)
+    X_mat = Cal_params(raw, GT_Snorm)
+
+    #########validation########
+
+    image_no_ff_val = np.load( dir+str(np.abs(val))+'_CAM' + cam_id + '.npy')
+    image_full= RadCal.ff_correct(image_no_ff_val,cam_id,expo)
+
+    image = image_full[clip:h - clip, clip:v - clip]
+    images_demosaiced = pa.demosaicing(image)
+    img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+
+    Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
+                                 np.deg2rad([0, 45, 90, 135]))
+    Stokes_norm,Int = norm_stokes(Stokes)
+
+    Stokes_cal = Cal(Stokes_norm, X_mat)
+    #Stokes_cal = Cal_after_demo(Stokes, a, b, c, d)
+
+    DoLP_without = pa.cvtStokesToDoLP(Stokes_norm)
+    AoLP_without = pa.cvtStokesToAoLP(Stokes_norm)
+    DoLP_with  = pa.cvtStokesToDoLP(Stokes_cal)
+    AoLP_with = pa.cvtStokesToAoLP(Stokes_cal)
+
+
+    vmin = 0
+    vmax = 0.2
+    plt.imshow(abs(1-DoLP_without))
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    print(np.mean(DoLP_without))
+    print(np.mean(np.rad2deg(AoLP_without)))
+    plt.show()
+    plt.imshow(abs(1-DoLP_with))
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    plt.show()
+    print(np.mean(DoLP_with))
+    print(np.mean(np.rad2deg(AoLP_with)))
+
+    vmin = 0
+    vmax = 10
+    plt.imshow(abs(np.rad2deg(AoLP_without)-val))
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    plt.show()
+    plt.imshow(abs(np.rad2deg(AoLP_with)-val))
+    plt.colorbar()
+    #plt.clim(vmin, vmax)
+    plt.show()
+    np.save(dir1 + '\polcal_matrix_' + cam_id,X_mat)
+    np.save(dir1 + cam_id + f"/DoLP_var_{val}", DoLP_with)
+    np.save(dir1 + cam_id + f"/DoLP_no_var_{val}", DoLP_without)
+    np.save(dir1 + cam_id + f"/AoLP_var_{val}", AoLP_with)
+    np.save(dir1 + cam_id + f"/AoLP_no_var_{val}", AoLP_without)
+
+def main3():
+
+
+    dir1 = f"C:/Users/masadatz/Google Drive/CloudCT/svs_vistek/calibration/"
+
+    ID = ['101933', '101934', '101935', '101936', '192900073']
+    cam = 3
+    cam_id = ID[cam]
+    dir = dir1 + cam_id + f"/full_scan/fixed/fixed_polcal_"
+    dir2 = f"/calibration params/polcal_params/"
+
+    val = 0
+    #image = np.load(dir+str(val)+'_' + cam_id + '.npy')
+    image_dir =r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\calibration\101936_2\full_scan\CalMatrix_2000cnts_1500ET_POL0_CAM101936.npy'
+    image = np.load(image_dir)
+    fixed_image = RadCal.ff_correct(image, cam_id, 1500)
+    plt.imshow(abs(image), cmap=plt.get_cmap('gray'))
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.show()
+    plt.imshow(abs(fixed_image), cmap=plt.get_cmap('gray'))
+    plt.colorbar(mappable=plt.cm.ScalarMappable(cmap=plt.get_cmap('gray')))
+    plt.show()
+    images_demosaiced = pa.demosaicing(fixed_image)
+    img_0, img_45, img_90, img_135 = cv2.split(images_demosaiced)
+    X_mat = np.load(dir1 + dir2+ 'polcal_matrix_' + cam_id+ '.npy')
+
+    Stokes = pa.calcLinearStokes(np.moveaxis(np.array([img_0, img_45, img_90, img_135]), 0, -1),
+                                 np.deg2rad([0, 45, 90, 135]))
+    Stokes_norm,Int = norm_stokes(Stokes)
+
+    Stokes_cal = Cal(Stokes_norm, X_mat)
+    # Stokes_cal = Cal_after_demo(Stokes, a, b, c, d)
+
+    DoLP_without = pa.cvtStokesToDoLP(Stokes_norm)
+    AoLP_without = pa.cvtStokesToAoLP(Stokes_norm)
+    DoLP_with = pa.cvtStokesToDoLP(Stokes_cal)
+    AoLP_with = pa.cvtStokesToAoLP(Stokes_cal)
+
+    vmin = 0
+    vmax = 1
+
+
+    plt.imshow(abs(DoLP_without), cmap=plt.get_cmap('hot'))
+    plt.colorbar()
+
+    print(np.mean(DoLP_without))
+    print(np.mean(np.rad2deg(AoLP_without)))
+    plt.show()
+    plt.imshow(abs(DoLP_with), cmap=plt.get_cmap('hot'))
+    plt.colorbar()
+
+    plt.show()
+    print(np.mean(DoLP_with))
+    print(np.mean(np.rad2deg(AoLP_with)))
+
+
+    vmin2= 0
+    vmax2 =5
+    plt.imshow((np.rad2deg(AoLP_without)-val), cmap=plt.get_cmap('hot'))#, vmin=vmin2, vmax=vmax2
+    plt.colorbar()
+
+    plt.show()
+    plt.imshow((np.rad2deg(AoLP_with)-val), cmap=plt.get_cmap('hot'))#, vmin=vmin2, vmax=vmax2
+    plt.colorbar()
+    plt.show()
+
+
 if __name__ == "__main__":
     main()
+
+

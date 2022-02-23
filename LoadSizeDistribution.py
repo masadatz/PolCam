@@ -2,10 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def LoadSizeDistribution():
+def LoadSizeDistribution(filename):
 
-
-    filename = 'greenclouds.txt'
     data = np.loadtxt(filename, dtype=float)
     Radii = data[:, 0]
     Numpar = data[:, 1]
