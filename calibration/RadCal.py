@@ -2,35 +2,9 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-#from __future__ import division
-from math import log, exp, tan, atan, pi, ceil
-import os
-import math
-import matplotlib.image as mpimg
-import matplotlib.colors as colors
-import pandas as pd
-from mpl_toolkits.mplot3d import Axes3D
-import time
-import scipy.spatial as spatial
-# from mayavi import mlab
-# mlab.init_notebook()
-import glob
-# from termcolor import colored
-import re
-import scipy.io as sio
-from scipy.interpolate import InterpolatedUnivariateSpline
-# import shdom
-from collections import OrderedDict
-from scipy import signal
-import itertools
-import seaborn as sns
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.linear_model import LinearRegression
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import PolynomialFeatures
-import scipy.optimize
-from scipy.optimize import curve_fit
 import json
 
 def spread_by_pol(cover):
