@@ -117,9 +117,10 @@ def gray2rad(image,cam_id,exposure,bit):
     with open(dir_ff + f"{cam_id}_calibration_params.json", "rb") as file:
         param_dict = json.load(file)
         C = np.array(param_dict["C"])
+        exposure_origin = param_dict["exposure time"]
     if (bit==8):
         C = C/256
-    rad = image/(exposure*C) #*10**(6)??
+    rad = exposure_origin*image/(exposure*C) #  [W/m^2/sr]      *10**(6)??
     return rad
 
 def main():
