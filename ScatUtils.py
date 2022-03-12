@@ -115,7 +115,7 @@ def MieCalc(Wavelength, Radii, Dist):
     #abs_cross_section = (qext - qsca) * cross_section_area
 
 
-    plt.figure(4)
+     plt.figure(4)
     plt.plot(Radii, qext, color='red', label=str(ref_n_wl))
 
     plt.title("Water droplets Qext")
@@ -134,9 +134,13 @@ def MieCalc(Wavelength, Radii, Dist):
 
     I1 = abs(s1)**2
     I2 = abs(s2)**2
+
+    # multiply all the intensities by the weights according to their frequencies
     I1 = np.transpose(I1)*Dist
-    I1 = np.mean(np.transpose(I1), 0)
     I2 = np.transpose(I2)*Dist
+
+    # now average over all scale factors (x). the relative weights has been taken in acount at the previous lines
+    I1 = np.mean(np.transpose(I1), 0)
     I2 = np.mean(np.transpose(I2), 0)
 
     #scat = (abs(s1) ** 2 + abs(s2) ** 2) / 2  # unpolarized scattered light
@@ -151,7 +155,7 @@ def MieCalc(Wavelength, Radii, Dist):
 
     plt.show()
 
-    return qext, qsca, qback, theta, s1 , s2
+    return qext, qsca, qback, theta, s1 , s2, scat
 
 #----------- Start of test code ---------------
 print('Test Cloud droplets distribution functions')
@@ -167,8 +171,8 @@ if DEBUG == 1:
 
 else:
 
-    filename =[r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\mesibot.txt',
-           r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\greenclouds.txt']
+    filename =[r'C:\ofer\PycharmProjects\PolCam\mesibot.txt',
+           r'C:\ofer\PycharmProjects\PolCam\greenclouds.txt']
     type = 1
     Radii, N_Distribition = LoadSizeDistribution(filename[type])
 
@@ -191,12 +195,8 @@ if (print_plots):
 
 Radii, V_Distribition = N2V_distribution(Radii, N_Distribition)
 V_Distribition_gamma =  Radii**(1/shape-3)*(np.exp(-Radii/(shape*scale)) / (sps.gamma(shape)*scale**shape))
-plt.plot(Radii, V_Distribition )
-plt.legend(['Number Dist.', 'Volume Dist.'])
-plt.xlabel('Radius [\mu  m]')
-plt.ylabel('Probability')
-plt.suptitle('Cloud droplets distribution')
-plt.show(block=False)
+
+
 if (print_plots):
     plt.plot(Radii, V_Distribition )
     plt.legend(['Number Dist.','Volume Dist.'])
