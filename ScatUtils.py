@@ -6,6 +6,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.special as sps
+from numpy import ndarray
+
 from LoadSizeDistribution import *
 
 #!pip install miepython
@@ -17,16 +19,17 @@ except ModuleNotFoundError:
     print('Once installation is successful, rerun this cell again.')
 
 
-
-
 def N2V_distribution(Radii, N_Distribition):
-    V_Distribition = N_Distribition
-    for  i in range(len(Radii)):
-      volume = (4*np.pi/3) * Radii[i]**3
-      V_Distribition[i] = N_Distribition[i] * volume
+    #V_Distribition = N_Distribition
 
-    V_Distribition = V_Distribition / np.sum(V_Distribition)
-    return V_Distribition
+    V_Distribution = np.zeros(len(Radii))
+    i: int
+    for i in range(len(Radii)):
+      volume = (4*np.pi/3) * Radii[i]**3
+      V_Distribution[i] = N_Distribition[i] * volume
+
+    V_Distribution = V_Distribution / np.sum(V_Distribution)
+    return V_Distribution
 
 
 def VisRange2Sigma(VisRange_m):
@@ -74,7 +77,8 @@ def LWC2Visibility(C_ext, Cloud_LWC_gr_cm3, Radii_micron, V_disrib):
 def MieCalc(Wavelength, Radii, Dist):
     # import the Segelstein data
 
-    h2o = np.genfromtxt('http://omlc.org/spectra/water/data/segelstein81_index.txt', delimiter='\t', skip_header=4)
+    #h2o = np.genfromtxt('http://omlc.org/spectra/water/data/segelstein81_index.txt', delimiter='\t', skip_header=4)
+    h2o = np.genfromtxt('segelstein81_index.txt', delimiter='\t', skip_header=4)
     h2o_lam = h2o[:, 0]
     h2o_mre = h2o[:, 1]
     h2o_mim = h2o[:, 2]
@@ -127,7 +131,7 @@ def MieCalc(Wavelength, Radii, Dist):
 
     theta = np.linspace(-180, 180, 180)
     mu = np.cos(theta / 180 * np.pi)
-    s1 = np.zeros([x.shape[0], mu.shape[0]],dtype=np.complex_)
+    s1: ndarray = np.zeros([x.shape[0], mu.shape[0]],dtype=np.complex_)
     s2 = np.zeros([x.shape[0], mu.shape[0]],dtype=np.complex_)
     for i in range(x.shape[0]):
         s1[i], s2[i] = miepython.mie_S1_S2(ref_n_wl - 1.0j * ref_k_wl, x[i], mu)
@@ -148,8 +152,11 @@ def MieCalc(Wavelength, Radii, Dist):
     pol_scat = np.sqrt((I1-I2)**2)/(I1+I2) # polarized scattered light+I3**2
     plt.figure(5)
     plt.polar(theta/180 * np.pi, np.log10(scat))
+    plt.title("Log scattering")
+
     plt.figure(6)
     plt.polar(theta / 180 * np.pi, (pol_scat))
+    plt.title("Polarized scattering")
 
     plt.show()
 
@@ -167,8 +174,10 @@ print('Test Cloud droplets distribution functions')
 
 type_num = 1
 type = ['mist', 'green clouds']
-filename = [r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\mesibot.txt',
-            r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\Data_From_Experiment\distributions\greenclouds.txt']
+#filename = [r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\mesibot.txt',
+#            r'C:\Users\masadatz\Google Drive\CloudCT\svs_vistek\Data_From_Experiment\distributions\greenclouds.txt']
+filename = [r'C:\Users\User\Documents\GitHub\PolCam\Data_From_Experiment\distributions\mesibot.txt',
+            r'C:\Users\User\Documents\GitHub\PolCam\Data_From_Experiment\distributions\greenclouds.txt']
 
 DEBUG = 0
 if DEBUG == 1:
@@ -176,56 +185,53 @@ if DEBUG == 1:
     # try distribution functions conversions
     shape, scale = 3., 3.  # mean=4, std=2*sqrt(2)
     Radii = np.linspace(0.1, 40.0, num=200)
-    N_Distribition = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
-    N_Distribition = N_Distribition / np.sum(N_Distribition)
+    N_Distribution = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
+    N_Distribution = N_Distribution / np.sum(N_Distribution)
 
 else:
-    Radii, N_Distribition = LoadSizeDistribution(filename[type_num])
-    N_Distribition/ np.sum(N_Distribition)
-plt.figure(1)
-plt.title(type[type_num]+" droplets Size distribution")
-plt.xlabel("Droplet Radius [microns]")
-plt.ylabel("Number")
+    Radii, num_Distribution = LoadSizeDistribution(filename[type_num])
+    num_Distribution / np.sum(num_Distribution)
+
 print_plots = True
-# try distribution functions conversions
+# calculate gamma distribution, just to check the fit
 shape, scale = 35., 0.1 # mean=4, std=2*sqrt(2)
-#Radii = np.linspace(0.1, 40.0, num=200)
-N_Distribition_gamma = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
-N_Distribition_gamma = N_Distribition_gamma / np.sum(N_Distribition_gamma)
+#N_Distribition_gamma = Radii**(shape-1)*(np.exp(-Radii/scale) / (sps.gamma(shape)*scale**shape)) # create a gamma  distribution
+#N_Distribition_gamma = N_Distribition_gamma / np.sum(N_Distribition_gamma)
+
+
+
+# calculate the volume distribution
+vol_Distribition = N2V_distribution(Radii, num_Distribution)
+#V_Distribition = N2V_distribution(Radii, N_Distribution)
+#V_Distribition = V_Distribition / np.sum(V_Distribition)
+#V_Distribition_gamma = N2V_distribution(Radii, N_Distribition_gamma)
+
 if (print_plots):
     plt.figure(1)
-    plt.plot(Radii, N_Distribition)
-    plt.plot(Radii, N_Distribition_gamma)
-
-
-V_Distribition = N2V_distribution(Radii, N_Distribition)
-V_Distribition_gamma = N2V_distribution(Radii, N_Distribition_gamma)
-plt.plot(Radii, V_Distribition )
-plt.legend(['Number Dist.', 'Volume Dist.'])
-plt.xlabel('Radius [\mu  m]')
-plt.ylabel('Probability')
-plt.suptitle('Cloud droplets distribution')
-plt.show(block=False)
-if (print_plots):
-    plt.plot(Radii, V_Distribition )
-    plt.legend(['Number Dist.','Volume Dist.'])
-    plt.xlabel('Radius [\mu  m]')
-    plt.ylabel('Probability')
-    plt.suptitle('Cloud droplets distribution')
+    plt.plot(Radii, num_Distribution)
+#    plt.plot(Radii, N_Distribition_gamma)
+    plt.plot(Radii, vol_Distribition)
+    plt.title(type[type_num] + " droplets Size distribution")
+    plt.xlabel("Droplet Radius [microns]")
+    plt.ylabel("Number/volume percentage")
+#    plt.legend(['Number Dist.', 'Gamma Number dist.', 'Volume Dist.'])
+    plt.legend(['Number Dist.', 'Volume Dist.'])
     plt.show(block=False)
+
 
 
 Sigma_1_over_m = VisRange2Sigma(30) # 30 meter visibility
 VisRange = Sigma2VisRange(Sigma_1_over_m) # we should receive back 30 meter visibility
 
 LWC_gr_cm3 = 0.3*1E-6  # gr/m^3
-TotalVDist = LWC2TotalVDist(LWC_gr_cm3, V_Distribition)
-plt.figure(2)
-plt.plot(Radii, TotalVDist )
-plt.legend(['Number Dist.','Volume Dist.'])
-plt.xlabel('Radius [\mu  m]')
-plt.ylabel('Total Number')
-plt.show(block=False)
+TotalVDist = LWC2TotalVDist(LWC_gr_cm3, vol_Distribition)
+if (print_plots):
+    plt.figure(2)
+    plt.plot(Radii, TotalVDist )
+    plt.legend(['Number Dist.','Volume Dist.'])
+    plt.xlabel('Radius [\mum]')
+    plt.ylabel('TotalVDist')
+    plt.show(block=False)
 
 # try visibility to optical depth function
 OD = Visibilty2OpticalDepth(3, 2.8)
@@ -234,7 +240,7 @@ print(OD)
 print(VisRange)
 # Run Mie Calculations
 Wavelength = 0.55 # microns
-MieCalc(Wavelength, Radii, V_Distribition_gamma)
+MieCalc(Wavelength, Radii, vol_Distribition)
 
-reff = calc_reff(Radii, N_Distribition)
+reff = calc_reff(Radii, num_Distribution)
 print(reff)
