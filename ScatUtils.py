@@ -6,9 +6,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.special as sps
+
+
 from numpy import ndarray
 
+
 from LoadSizeDistribution import *
+from LoadProjectorSpectrum import *
+
 
 #!pip install miepython
 try:
@@ -30,6 +35,75 @@ def N2V_distribution(Radii, N_Distribition):
 
     V_Distribution = V_Distribution / np.sum(V_Distribution)
     return V_Distribution
+
+
+def lux_2_watts_m2_full_spectrum(LUX, Ilumination_type):
+    # https: // ieee - dataport.org / open - access / conversion - guide - solar - irradiance - and -lux - illuminance
+
+    if Ilumination_type == 'Sun':
+        W_m2 = LUX * 0.0079
+        return W_m2
+    elif Ilumination_type == 'Halogen lamp':
+        W_m2 = LUX / 20
+        return W_m2
+    elif Ilumination_type == 'Tungsten incandescent':
+        W_m2 = LUX / 15
+        return W_m2
+    elif Ilumination_type == 'Fluorescent lamp':
+        W_m2 = LUX / 60
+        return W_m2
+    elif Ilumination_type == 'LED lamp':
+        W_m2 = LUX / 90
+        return W_m2
+    elif Ilumination_type == 'Metal Halide lamp':
+        W_m2 = LUX / 87
+        return W_m2
+    elif Ilumination_type == 'High pressure sodium vapor lamp':
+        W_m2 = LUX / 117
+        return W_m2
+    elif Ilumination_type == 'Low pressure sodium vapor lamp':
+        W_m2 = LUX / 150
+        return W_m2
+    elif Ilumination_type == 'Mercury vapor lamp':
+        W_m2 = LUX / 50
+        return W_m2
+
+def lux_2_watts_m2_projector(LUX, WL_min_nm, WL_max_nm):
+    # conversion :  683.0 lux to 1 w/
+
+    proj_file = r'Data_From_Experiment/projector.txt'
+    Photopic_file = r'Data_From_Experiment/eye_sensitivity.xls'
+    Wavelength_photopic_nm, photopic_response = load_photopic_function(Photopic_file)
+    ProjWavelength_nm, ProjIntensity = LoadProjectorSpectrum(proj_file)
+
+    photopic_responseInterp = np.interp(ProjWavelength_nm, Wavelength_photopic_nm, photopic_response, 0, 0)
+    ProjPhotopicPortion = ProjIntensity * photopic_responseInterp
+    tmp = np.argwhere(ProjWavelength_nm > 400)
+    Inx1 = int(tmp[0])
+    tmp = np.argwhere(ProjWavelength_nm < 700)
+    Inx2 = int(tmp[-1])
+
+    ProjPowerPhotopic = np.sum(ProjPhotopicPortion[Inx1: Inx2])
+    ProjPower = np.sum(ProjIntensity[Inx1: Inx2])
+
+    Inx1 = np.argwhere(ProjWavelength_nm > WL_min_nm)
+    Inx1 = int(Inx1[0])
+    Inx2 = np.argwhere(ProjWavelength_nm < WL_max_nm)
+    Inx2 = int(Inx2[-1])
+    ProjPowerBand = np.sum(ProjIntensity[Inx1: Inx2])
+
+    C_Photopic = ProjPower / ProjPowerPhotopic
+    C_band = ProjPowerBand / ProjPower
+    tmp = np.argwhere(ProjWavelength_nm > 555)
+    Inx = int(tmp[1])
+
+    dlabda = ProjWavelength_nm[Inx+1] - ProjWavelength_nm[Inx]
+
+    C_units = 1/(dlabda*683.002)
+    W_m2 = float(LUX) * C_Photopic * C_band * C_units
+    return W_m2
+
+
 
 
 def VisRange2Sigma(VisRange_m):
@@ -61,6 +135,11 @@ def LWC2TotalVDist(LWC_gr_cm3, V_Distribition):
 
     return TotalVDist
 
+def LUX2Intensity(LUX_level, w1_micron, w2_micron):
+    intensity_W = 1
+    return intensity_W
+
+
 def LWC2Visibility(C_ext, Cloud_LWC_gr_cm3, Radii_micron, V_disrib):
 
     print(f'Not active yet')
@@ -73,6 +152,8 @@ def LWC2Visibility(C_ext, Cloud_LWC_gr_cm3, Radii_micron, V_disrib):
 
         VisRange_m = Sigma2VisRange(Sigma_1_over_m)
     return VisRange_m
+
+
 
 def MieCalc(Wavelength, Radii, Dist):
     # import the Segelstein data
@@ -131,17 +212,20 @@ def MieCalc(Wavelength, Radii, Dist):
 
     theta = np.linspace(-180, 180, 180)
     mu = np.cos(theta / 180 * np.pi)
-    s1: ndarray = np.zeros([x.shape[0], mu.shape[0]],dtype=np.complex_)
-    s2 = np.zeros([x.shape[0], mu.shape[0]],dtype=np.complex_)
-    for i in range(x.shape[0]):
-        s1[i], s2[i] = miepython.mie_S1_S2(ref_n_wl - 1.0j * ref_k_wl, x[i], mu)
+    s1: ndarray = np.zeros([x.shape[0], mu.shape[0]], dtype=np.complex_)
+    s2: ndarray = np.zeros([x.shape[0], mu.shape[0]], dtype=np.complex_)
+    I1: ndarray = np.zeros([x.shape[0], mu.shape[0]], dtype=np.float)
+    I2: ndarray = np.zeros([x.shape[0], mu.shape[0]], dtype=np.float)
+    I3: ndarray = np.zeros([x.shape[0], mu.shape[0]], dtype=np.float)
 
+    for i in range(len(x)):
+        s1[i, :], s2[i, :] = miepython.mie_S1_S2(ref_n_wl - 1.0j * ref_k_wl, x[i], mu)
+        I1[i, :] = abs(s1[i, :])**2
+        I2[i, :] = abs(s2[i, :])**2
+        I3[i, :] = abs(s1[i, :] * (s2[i, :].conj())+s2[i, :]*(s1[i, :].conj()))
 
-    I1 = abs(s1)**2
-    I2 = abs(s2)**2
-    I3 = abs(s1*(s2.conj())+s2*(s1.conj()))
     I1 = np.transpose(I1)*Dist*sca_cross_section
-    I1 = np.sum(np.transpose(I1), 0)/mean_scs
+    I1 = np.sum(np.transpose(I1 ), 0)/mean_scs
     I2 = np.transpose(I2)*Dist*sca_cross_section
     I2 = np.sum(np.transpose(I2), 0)/mean_scs
     I3 = np.transpose(I3)*Dist*sca_cross_section
@@ -155,7 +239,7 @@ def MieCalc(Wavelength, Radii, Dist):
     plt.title("Log scattering")
 
     plt.figure(6)
-    plt.polar(theta / 180 * np.pi, (pol_scat))
+    plt.polar(theta / 180 * np.pi, np.log10(pol_scat))
     plt.title("Polarized scattering")
 
     plt.show()
@@ -169,7 +253,22 @@ def calc_reff(radii, N_dist):
     reff = Sum1/Sum2
     return reff
 
-#----------- Start of test code ---------------
+#------------------------------------------------------------------------------------
+#----------------------------- Start of test code -----------------------------------
+#------------------------------------------------------------------------------------
+
+
+print('Test LUX to W per m^2')
+LUX = 100
+LightSource = 'Metal Halide lamp'# 'Sun' # 'Tungsten incandescent' # 'Halogen lamp'
+W_m2 = lux_2_watts_m2_full_spectrum(LUX,  LightSource)
+#print('reference value for halogen lamp: 100 LUX = 5 w/m^2')
+print('calculated value for', LightSource, '  lamp:', LUX , 'LUX = ', W_m2 , ' w/m^2')
+
+W_m2 = lux_2_watts_m2_projector(LUX, 200, 2500)
+print('No reference value for our projector')
+print('calculated value for Ofers projrctor:', LUX, 'LUX = ', float(W_m2), ' w/m^2')
+
 print('Test Cloud droplets distribution functions')
 
 type_num = 1
